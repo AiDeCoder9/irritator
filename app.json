@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "IRRITATOR",
+    "slug": "irritator",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.irritator.app"
+    },
+    "android": {
+      "package": "com.irritator.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#F2B33D",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_FULL_SCREEN_INTENT",
+        "android.permission.WAKE_LOCK",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "plugins": [
+      "expo-dev-client",
+      "react-native-notify-kit",
+      "./plugins/withLockScreen"
+    ]
+  }
+}
