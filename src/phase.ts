@@ -76,3 +76,18 @@ export function nextOccurrence(hour: number, minute: number, days: boolean[], fr
   }
   return from + DAY;
 }
+
+/** 5:00 am style, matching how people say alarm times. */
+export function time12(hour: number, minute: number) {
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h}:${pad(minute)} ${hour < 12 ? 'am' : 'pm'}`;
+}
+
+/** "in 14 h 2 min" */
+export function inText(ms: number) {
+  const total = Math.max(0, Math.round(ms / 60_000));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h === 0) return `in ${m} min`;
+  return `in ${h} h ${m} min`;
+}

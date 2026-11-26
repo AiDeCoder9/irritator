@@ -1,132 +1,250 @@
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useKeepAwake } from 'expo-keep-awake';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { clockText, DAY_NAMES, dayName, leaveByOf, pad, timeText } from './phase';
+import { clockText, DAY_NAMES, dayName, inText, leaveByOf, pad, time12, timeText } from './phase';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
-import { Button, HeatBar, Hero, Screen, Stepper, T, topInset } from './ui';
+import { Button, Chip, Hero, Screen, Stepper, T, topInset } from './ui';
 
 type Patch = (p: Partial<State>) => void;
 
-/* ---------- Alarm setup (idle and waiting) ---------- */
+const page = { paddingTop: topInset, paddingHorizontal: 28, paddingBottom: 32 } as const;
 
-export function SetupScreen({
+/* ---------- Home: the one screen you use every day ---------- */
+
+export function HomeScreen({
   s,
   now,
   notes,
   onChange,
-  onSet,
+  onToggle,
   onTest,
-  onCancel,
-  onBattery,
+  onSettings,
 }: {
   s: State;
   now: number;
   notes: string[];
   onChange: Patch;
-  onSet: () => void;
+  onToggle: () => void;
   onTest: () => void;
-  onCancel: () => void;
-  onBattery: () => void;
+  onSettings: () => void;
 }) {
-  const waiting = s.alarmAt != null;
-  const stepMinute = (d: number) => onChange({ alarmMinute: (s.alarmMinute + d + 60) % 60 });
-  const stepHour = (d: number) => onChange({ alarmHour: (s.alarmHour + d + 24) % 24 });
+  const on = s.alarmAt != null;
+  const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
+
+  const pickTime = () => {
+    const d = new Date();
+    d.setHours(s.alarmHour, s.alarmMinute, 0, 0);
+    DateTimePickerAndroid.open({
+      value: d,
+      mode: 'time',
+      is24Hour: false,
+      onChange: (event, picked) => {
+        if (event.type === 'set' && picked) {
+          onChange({ alarmHour: picked.getHours(), alarmMinute: picked.getMinutes() });
+        }
+      },
+    });
+  };
+
+  const toggleDay = (d: number) => {
+    const onlyOne = s.days[d] && s.days.filter(Boolean).length === 1;
+    if (onlyOne) return;
+    const next = [...s.days];
+    next[d] = !next[d];
+    onChange({ days: next });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: color.concrete }}>
-      <ScrollView contentContainerStyle={{ paddingTop: topInset, paddingHorizontal: 28, paddingBottom: 40, gap: 22 }}>
-        <Hero size={72} tint={color.graphite}>
-          Alarm
-        </Hero>
-
-        {waiting ? (
-          <View style={{ gap: 4 }}>
-            <T size={22} weight="bold" tint={color.graphite}>
-              Rings {dayName(s.alarmAt!)} at {timeText(s.alarmAt!)}
-            </T>
-            <T size={17} tint={color.iron}>
-              In {clockText(s.alarmAt! - now)} (mm:ss). Day {s.streak + 1} is waiting.
-            </T>
-          </View>
-        ) : (
-          <T size={17} tint={color.iron}>
-            Day {s.streak + 1} starts when this rings.
+      <ScrollView contentContainerStyle={{ ...page, flexGrow: 1, gap: 32 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <T size={20} weight="bold" tint={color.graphite}>
+            Day {s.streak + 1}
           </T>
-        )}
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSettings}
+            style={({ pressed }) => ({
+              minHeight: 48,
+              paddingHorizontal: 4,
+              justifyContent: 'center',
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <T size={17} weight="semibold" tint={color.graphite}>
+              Settings
+            </T>
+          </Pressable>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
+          onPress={pickTime}
+          style={({ pressed }) => ({ gap: 4, transform: [{ scale: pressed ? 0.98 : 1 }] })}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
+            <Hero size={136} tint={color.graphite}>
+              {hour12}
+            </Hero>
+            <Text style={{ fontFamily: font.display, fontSize: 44, lineHeight: 56, color: color.graphite }}>
+              {ampm}
+            </Text>
+          </View>
+          <T size={16} tint={color.iron}>
+            Tap the time to change it
+          </T>
+        </Pressable>
+
+        <View style={{ gap: 12 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
+            Repeat
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+              <Chip
+                key={d}
+                label={DAY_NAMES[d].slice(0, 2)}
+                a11y={DAY_NAMES[d]}
+                on={s.days[d]}
+                onPress={() => toggleDay(d)}
+              />
+            ))}
+          </View>
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
+            Minutes to get out the door
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[5, 10, 15, 20, 25, 30].map((m) => (
+              <Chip
+                key={m}
+                label={String(m)}
+                a11y={`${m} minutes`}
+                on={s.countdownMin === m}
+                onPress={() => onChange({ countdownMin: m })}
+              />
+            ))}
+          </View>
+          <T size={15} tint={color.iron}>
+            The countdown starts when you dismiss the alarm.
+          </T>
+        </View>
+
+        <View style={{ flex: 1, minHeight: 8 }} />
 
         <View style={{ gap: 14 }}>
-          <T size={17} weight="semibold" tint={color.graphite}>
-            Alarm time
-          </T>
-          <Stepper label="hour" value={pad(s.alarmHour)} onDec={() => stepHour(-1)} onInc={() => stepHour(1)} />
-          <Stepper label="minute" value={pad(s.alarmMinute)} onDec={() => stepMinute(-5)} onInc={() => stepMinute(5)} />
-        </View>
+          {on ? (
+            <View style={{ gap: 2 }}>
+              <T size={20} weight="bold" tint={color.graphite}>
+                Alarm is on
+              </T>
+              <T size={17} tint={color.iron}>
+                Rings {dayName(s.alarmAt!)} at {timeText(s.alarmAt!)}, {inText(s.alarmAt! - now)}.
+              </T>
+            </View>
+          ) : (
+            <T size={20} weight="bold" tint={color.graphite}>
+              Alarm is off
+            </T>
+          )}
 
-        <View style={{ gap: 10 }}>
-          <T size={17} weight="semibold" tint={color.graphite}>
-            Repeat on
-          </T>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-              const on = s.days[d];
-              const onlyOne = on && s.days.filter(Boolean).length === 1;
-              return (
-                <Pressable
-                  key={d}
-                  accessibilityRole="button"
-                  accessibilityLabel={DAY_NAMES[d]}
-                  accessibilityState={{ selected: on }}
-                  onPress={() => {
-                    if (onlyOne) return;
-                    const next = [...s.days];
-                    next[d] = !on;
-                    onChange({ days: next });
-                  }}
-                  style={{
-                    width: 42,
-                    height: 48,
-                    borderRadius: 12,
-                    borderWidth: 2,
-                    borderColor: color.graphite,
-                    backgroundColor: on ? color.graphite : 'transparent',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Text style={{ fontFamily: font.semibold, fontSize: 15, color: on ? color.white : color.graphite }}>
-                    {DAY_NAMES[d].slice(0, 2)}
-                  </Text>
-                </Pressable>
-              );
+          {notes.map((n) => (
+            <T key={n} size={16} weight="semibold" tint={color.graphite}>
+              {n}
+            </T>
+          ))}
+
+          {on ? (
+            <Button label="Turn alarm off" onPress={onToggle} outline={color.graphite} fg={color.graphite} />
+          ) : (
+            <Button label="Turn alarm on" onPress={onToggle} bg={color.graphite} fg={color.white} />
+          )}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={onTest}
+            style={({ pressed }) => ({
+              minHeight: 48,
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: pressed ? 0.6 : 1,
             })}
-          </View>
-          <T size={15} tint={color.iron}>
-            At least one day stays on. Changes apply the next time you press Set alarm or Update alarm.
-          </T>
+          >
+            <T size={16} weight="semibold" tint={color.iron} style={{ textDecorationLine: 'underline' }}>
+              Try it: ring in 30 seconds
+            </T>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ---------- Settings: things you set once ---------- */
+
+export function SettingsScreen({
+  s,
+  onChange,
+  onBack,
+  onBattery,
+}: {
+  s: State;
+  onChange: Patch;
+  onBack: () => void;
+  onBattery: () => void;
+}) {
+  return (
+    <View style={{ flex: 1, backgroundColor: color.concrete }}>
+      <ScrollView contentContainerStyle={{ ...page, gap: 28 }} keyboardShouldPersistTaps="handled">
+        <View style={{ gap: 4 }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onBack}
+            style={({ pressed }) => ({ minHeight: 48, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+          >
+            <T size={17} weight="semibold" tint={color.graphite}>
+              Back
+            </T>
+          </Pressable>
+          <Hero size={64} tint={color.graphite}>
+            Settings
+          </Hero>
         </View>
 
         <View style={{ gap: 10 }}>
           <T size={17} weight="semibold" tint={color.graphite}>
-            Time to leave after the alarm
+            Your reason
           </T>
-          <Stepper
-            label="minutes"
-            value={String(s.countdownMin)}
-            atMin={s.countdownMin <= 5}
-            atMax={s.countdownMin >= 30}
-            onDec={() => onChange({ countdownMin: Math.max(5, s.countdownMin - 5) })}
-            onInc={() => onChange({ countdownMin: Math.min(30, s.countdownMin + 5) })}
+          <TextInput
+            value={s.reason}
+            onChangeText={(t) => onChange({ reason: t })}
+            multiline
+            style={{
+              minHeight: 72,
+              borderWidth: 2,
+              borderColor: color.graphite,
+              borderRadius: 12,
+              padding: 14,
+              fontFamily: font.body,
+              fontSize: 17,
+              color: color.graphite,
+              textAlignVertical: 'top',
+            }}
           />
           <T size={15} tint={color.iron}>
-            Pick 5 to 30 minutes, in steps of 5. The countdown starts when you dismiss the alarm.
+            Shown on the full screen when you're late.
           </T>
         </View>
 
         <View style={{ gap: 10 }}>
           <T size={17} weight="semibold" tint={color.graphite}>
-            Days done in a row
+            Days in a row
           </T>
           <Stepper
             label="days"
@@ -136,50 +254,19 @@ export function SetupScreen({
             onInc={() => onChange({ streak: Math.min(999, s.streak + 1) })}
           />
           <T size={15} tint={color.iron}>
-            Today will be day {s.streak + 1}. Change this to match your real streak. Checking in adds one; skipping resets it to 0.
+            Match your real streak. Going to the gym adds one. Skipping resets it to 0.
           </T>
         </View>
 
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 10 }}>
           <T size={17} weight="semibold" tint={color.graphite}>
-            Your reason
+            Keep the alarm reliable
           </T>
-          <TextInput
-            value={s.reason}
-            onChangeText={(t) => onChange({ reason: t })}
-            multiline
-            style={{
-              minHeight: 64,
-              borderWidth: 2,
-              borderColor: color.graphite,
-              borderRadius: 12,
-              padding: 14,
-              fontFamily: font.body,
-              fontSize: 17,
-              color: color.graphite,
-            }}
-          />
+          <Button label="Open battery settings" onPress={onBattery} outline={color.graphite} fg={color.graphite} />
           <T size={15} tint={color.iron}>
-            Shown on the full-screen motivation screen when you're late.
+            On Samsung: Settings, Battery, Background usage limits, Never sleeping apps, then add IRRITATOR.
           </T>
         </View>
-
-        {notes.map((n) => (
-          <T key={n} size={16} weight="semibold" tint={color.graphite}>
-            {n}
-          </T>
-        ))}
-
-        <View style={{ gap: 12 }}>
-          <Button label={waiting ? 'Update alarm' : 'Set alarm'} onPress={onSet} bg={color.graphite} fg={color.white} />
-          <Button label="Test: ring in 30 seconds" onPress={onTest} outline={color.graphite} fg={color.graphite} />
-          <Button label="Battery settings" onPress={onBattery} outline={color.graphite} fg={color.graphite} />
-          {waiting ? <Button label="Cancel alarm" onPress={onCancel} fg={color.graphite} /> : null}
-        </View>
-
-        <T size={15} tint={color.iron}>
-          Samsung: also open Settings, Battery, Background usage limits, Never sleeping apps, and add IRRITATOR.
-        </T>
       </ScrollView>
     </View>
   );
@@ -187,20 +274,18 @@ export function SetupScreen({
 
 /* ---------- Alarm ringing ---------- */
 
-export function RingingScreen({ now, onDismiss }: { now: number; onDismiss: () => void }) {
+export function RingingScreen({ s, now, onDismiss }: { s: State; now: number; onDismiss: () => void }) {
   useKeepAwake();
   return (
     <Screen bg={color.concrete}>
-      <T size={16} weight="semibold" tint={color.graphite}>
-        Alarm
-      </T>
+      <View />
       <View style={{ gap: 6 }}>
         <T size={22} weight="bold" tint={color.graphite}>
           Time to get up
         </T>
         <Hero tint={color.graphite}>{timeText(now)}</Hero>
         <T size={19} tint={color.graphite}>
-          Dismiss the alarm and your countdown starts.
+          Dismiss to start your {s.countdownMin}-minute countdown.
         </T>
       </View>
       <Button label="Dismiss alarm" onPress={onDismiss} bg={color.graphite} fg={color.white} />
@@ -210,30 +295,28 @@ export function RingingScreen({ now, onDismiss }: { now: number; onDismiss: () =
 
 /* ---------- Countdown and late (amber) ---------- */
 
-export function CountdownScreen({
-  s,
-  now,
-  onCheckIn,
-}: {
-  s: State;
-  now: number;
-  onCheckIn: () => void;
-}) {
+export function CountdownScreen({ s, now, onCheckIn }: { s: State; now: number; onCheckIn: () => void }) {
   useKeepAwake();
   const leaveBy = leaveByOf(s)!;
   const late = now >= leaveBy;
-  const msLeft = leaveBy - now;
+  const total = s.countdownMin * 60_000;
+  const used = Math.min(1, Math.max(0, (now - s.dismissedAt!) / total));
   const lateMin = Math.floor((now - leaveBy) / 60_000);
-  const takeoverIn = leaveBy + TAKEOVER_AFTER_MIN * 60_000 - now;
 
   return (
     <Screen bg={color.amber}>
-      <View style={{ gap: 10 }}>
-        <HeatBar level={late ? 2 : 1} fill={color.graphite} track={color.graphite} />
+      <View style={{ gap: 12 }}>
+        <View
+          accessibilityRole="progressbar"
+          accessibilityLabel="Countdown progress"
+          style={{ height: 10, borderRadius: 5, backgroundColor: '#D99A24', overflow: 'hidden' }}
+        >
+          <View style={{ width: `${used * 100}%`, height: '100%', backgroundColor: color.graphite }} />
+        </View>
         <T size={16} weight="semibold" tint={color.graphite}>
           {late
-            ? `Nag level 2 of 3. The full screen appears in ${clockText(takeoverIn)}.`
-            : 'Nag level 1 of 3. A louder one comes at your leave-by time.'}
+            ? `Reminders are getting louder. The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.`
+            : 'Reminders get louder as your time runs out.'}
         </T>
       </View>
 
@@ -241,26 +324,23 @@ export function CountdownScreen({
         <T size={22} weight="bold" tint={color.graphite}>
           {late ? `${lateMin} min past ${timeText(leaveBy)}` : `Leave by ${timeText(leaveBy)}`}
         </T>
-        <Hero tint={color.graphite}>{late ? clockText(now - leaveBy) : clockText(msLeft)}</Hero>
+        <Hero tint={color.graphite}>{late ? clockText(now - leaveBy) : clockText(leaveBy - now)}</Hero>
         <T size={22} tint={color.graphite}>
           {late ? 'late.' : 'until you should be out the door.'}
-        </T>
-        <T size={19} tint={color.graphite} style={{ marginTop: 18, maxWidth: 320 }}>
-          You dismissed the alarm at {timeText(s.dismissedAt!)} and gave yourself {s.countdownMin} minutes.
         </T>
       </View>
 
       <View style={{ gap: 14 }}>
         <T size={16} tint={color.graphite}>
-          Skip today and your streak resets to 0.
+          Skipping today resets your streak to 0.
         </T>
-        <Button label="Test: I'm at the gym" onPress={onCheckIn} bg={color.graphite} fg={color.white} />
+        <Button label="I'm at the gym" onPress={onCheckIn} bg={color.graphite} fg={color.white} />
       </View>
     </Screen>
   );
 }
 
-/* ---------- Motivation screen (level 3) ---------- */
+/* ---------- Motivation screen (last reminder) ---------- */
 
 export function TakeoverScreen({
   s,
@@ -276,10 +356,6 @@ export function TakeoverScreen({
   useKeepAwake();
   const [why, setWhy] = useState('');
   const [mountedAt] = useState(Date.now());
-  const [, force] = useState(0);
-  useEffect(() => {
-    force((n) => n + 1);
-  }, [now]);
 
   const waitLeft = Math.max(0, SKIP_WAIT_SEC - Math.floor((now - mountedAt) / 1000));
   const canSkip = waitLeft === 0 && why.trim().length >= 3;
@@ -288,14 +364,11 @@ export function TakeoverScreen({
 
   return (
     <Screen bg={color.graphite}>
-      <View style={{ gap: 10 }}>
-        <HeatBar level={3} fill={color.amber} track={color.amber} />
-        <T size={16} weight="semibold" tint={color.mist}>
-          Nag level 3 of 3. It stops when you leave.
-        </T>
-      </View>
+      <T size={16} weight="semibold" tint={color.mist}>
+        This stays until you leave. You're {lateMin} minutes late.
+      </T>
 
-      <View style={{ gap: 22 }}>
+      <View style={{ gap: 24 }}>
         <Hero size={84} tint={color.amber}>
           {`Day ${s.streak + 1} starts at the gym.`}
         </Hero>
@@ -307,13 +380,10 @@ export function TakeoverScreen({
             {s.reason}
           </T>
         </View>
-        <T size={17} tint={color.mist}>
-          It's {lateMin} minutes past {timeText(leaveBy)}. Skip today and your streak resets to 0.
-        </T>
       </View>
 
       <View style={{ gap: 14 }}>
-        <Button label="Test: I'm at the gym" onPress={onCheckIn} bg={color.amber} fg={color.graphite} />
+        <Button label="I'm at the gym" onPress={onCheckIn} bg={color.amber} fg={color.graphite} />
         <T size={16} weight="semibold" tint={color.white}>
           Skipping today? Say why.
         </T>
@@ -351,7 +421,7 @@ export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void })
   return (
     <Screen bg={color.cleared}>
       <T size={16} weight="semibold" tint={color.white}>
-        Cleared for today. No more nags until tomorrow.
+        Done for today. No more reminders until tomorrow.
       </T>
       <View style={{ gap: 6 }}>
         <T size={22} weight="bold" tint={color.white}>
@@ -370,7 +440,7 @@ export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void })
       <View style={{ gap: 14 }}>
         <T size={16} tint={color.white}>
           {s.alarmAt != null
-            ? `Next alarm: ${dayName(s.alarmAt)} at ${timeText(s.alarmAt)}. You get ${s.countdownMin} minutes to leave.`
+            ? `Next alarm: ${dayName(s.alarmAt)} at ${timeText(s.alarmAt)}.`
             : 'No alarm is set.'}
         </T>
         <Button label="Done" onPress={onClose} bg={color.white} fg={color.graphite} />

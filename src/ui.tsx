@@ -1,5 +1,15 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { Pressable, StatusBar as RNStatusBar, StyleSheet, Text, TextStyle, View } from 'react-native';
+import { ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StatusBar as RNStatusBar,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+} from 'react-native';
 
 import { color, font } from './theme';
 
@@ -170,3 +180,78 @@ const styles = StyleSheet.create({
   stepOff: { borderColor: '#8D8F95' },
   stepText: { fontFamily: font.semibold, fontSize: 30, lineHeight: 34, color: color.graphite },
 });
+
+/** One-tap choice button. Big enough to hit with a thumb. */
+export function Chip({
+  label,
+  on,
+  onPress,
+  a11y,
+  disabled,
+}: {
+  label: string;
+  on: boolean;
+  onPress: () => void;
+  a11y?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
+      accessibilityState={{ selected: on }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        height: 48,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: color.graphite,
+        backgroundColor: on ? color.graphite : 'transparent',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+      })}
+    >
+      <Text style={{ fontFamily: font.semibold, fontSize: 16, color: on ? color.white : color.graphite }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** Each new screen fades in with a small rise (220ms, strong ease-out). Reduced motion: fade only. */
+export function FadeIn({ children }: { children: ReactNode }) {
+  const v = useRef(new Animated.Value(0)).current;
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then((r) => {
+        if (!alive) return;
+        setReduce(r);
+        Animated.timing(v, {
+          toValue: 1,
+          duration: r ? 150 : 220,
+          easing: Easing.bezier(0.23, 1, 0.32, 1),
+          useNativeDriver: true,
+        }).start();
+      });
+    return () => {
+      alive = false;
+    };
+  }, [v]);
+  return (
+    <Animated.View
+      style={{
+        flex: 1,
+        opacity: v,
+        transform: [{ translateY: reduce ? 0 : v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}

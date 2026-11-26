@@ -24,13 +24,14 @@ import { isMissed, phaseOf } from './src/phase';
 import {
   ClearedScreen,
   CountdownScreen,
+  HomeScreen,
   RingingScreen,
-  SetupScreen,
+  SettingsScreen,
   TakeoverScreen,
 } from './src/screens';
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
-import { topInset, useNow } from './src/ui';
+import { FadeIn, topInset, useNow } from './src/ui';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -45,6 +46,7 @@ export default function App() {
   });
   const [state, setState] = useState<State>(loadState);
   const [notes, setNotes] = useState<string[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
   // Errors show on every screen, so a failure can never happen silently.
   const [error, setError] = useState<string | null>(null);
   const now = useNow(1000);
@@ -90,11 +92,21 @@ export default function App() {
   const phase = phaseOf(state, now);
   const dark = phase === 'takeover' || phase === 'cleared';
 
-  const onSet = () =>
+  const turnOn = () =>
     run(async () => {
       setNotes(await ensurePermissions());
       return scheduleAlarm(state);
     });
+
+  const onToggle = () => (state.alarmAt != null ? run(() => cancelAlarm()) : turnOn());
+
+  // Changing the time or days while the alarm is on moves the alarm right away.
+  const onChange = (patch: Partial<State>) => {
+    update(patch);
+    if (state.alarmAt != null && ('alarmHour' in patch || 'alarmMinute' in patch || 'days' in patch)) {
+      run(() => scheduleAlarm({ ...state, ...patch }));
+    }
+  };
 
   const onTest = () =>
     run(async () => {
@@ -116,7 +128,7 @@ export default function App() {
   let screen;
   switch (phase) {
     case 'ringing':
-      screen = <RingingScreen now={now} onDismiss={onDismiss} />;
+      screen = <RingingScreen s={state} now={now} onDismiss={onDismiss} />;
       break;
     case 'countdown':
     case 'late':
@@ -136,16 +148,22 @@ export default function App() {
       screen = <ClearedScreen s={state} onClose={() => run(() => closeToday())} />;
       break;
     default:
-      screen = (
-        <SetupScreen
+      screen = showSettings ? (
+        <SettingsScreen
+          s={state}
+          onChange={update}
+          onBack={() => setShowSettings(false)}
+          onBattery={() => run(async () => openBatterySettings())}
+        />
+      ) : (
+        <HomeScreen
           s={state}
           now={now}
           notes={notes}
-          onChange={update}
-          onSet={onSet}
+          onChange={onChange}
+          onToggle={onToggle}
           onTest={onTest}
-          onCancel={() => run(() => cancelAlarm())}
-          onBattery={() => run(async () => openBatterySettings())}
+          onSettings={() => setShowSettings(true)}
         />
       );
   }
@@ -153,7 +171,7 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      {screen}
+      <FadeIn key={`${phase}-${showSettings}`}>{screen}</FadeIn>
       {error ? (
         <Pressable
           accessibilityRole="button"
