@@ -30,6 +30,12 @@
     "plugins": [
       "expo-dev-client",
       "react-native-notify-kit",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "IRRITATOR checks that you are at your gym when you tap I'm at the gym."
+        }
+      ],
       "./plugins/withLockScreen"
     ]
   }

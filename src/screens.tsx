@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { clockText, DAY_NAMES, dayName, inText, leaveByOf, pad, time12, timeText } from './phase';
+import { hasGym } from './gym';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
 import { Button, Chip, Hero, Screen, Stepper, T, topInset } from './ui';
@@ -193,11 +194,13 @@ export function SettingsScreen({
   onChange,
   onBack,
   onBattery,
+  onSetup,
 }: {
   s: State;
   onChange: Patch;
   onBack: () => void;
   onBattery: () => void;
+  onSetup: () => void;
 }) {
   return (
     <View style={{ flex: 1, backgroundColor: color.concrete }}>
@@ -215,6 +218,26 @@ export function SettingsScreen({
           <Hero size={64} tint={color.graphite}>
             Settings
           </Hero>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
+            Your gym
+          </T>
+          <T size={17} tint={color.graphite}>
+            {hasGym(s) ? `${s.gymLabel}, within ${s.gymRadius} m` : 'Not set yet.'}
+          </T>
+          <Button label="Change gym and schedule" onPress={onSetup} outline={color.graphite} fg={color.graphite} />
+          <T size={17} weight="semibold" tint={color.graphite} style={{ marginTop: 8 }}>
+            Check my location at check-in
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Chip label="On" on={s.verifyLocation} onPress={() => onChange({ verifyLocation: true })} />
+            <Chip label="Off" on={!s.verifyLocation} onPress={() => onChange({ verifyLocation: false })} />
+          </View>
+          <T size={15} tint={color.iron}>
+            Turn Off only to test at home.
+          </T>
         </View>
 
         <View style={{ gap: 10 }}>

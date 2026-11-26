@@ -20,6 +20,8 @@ import {
   scheduleAlarm,
   skipToday,
 } from './src/alarm';
+import { checkAtGym } from './src/gym';
+import { Onboarding } from './src/onboarding';
 import { isMissed, phaseOf } from './src/phase';
 import {
   ClearedScreen,
@@ -49,6 +51,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   // Errors show on every screen, so a failure can never happen silently.
   const [error, setError] = useState<string | null>(null);
+  // Plain messages (like "you're too far") are not bugs, so they get their own banner text.
+  const [notice, setNotice] = useState<string | null>(null);
+  const [setup, setSetup] = useState(false);
+  const checking = useRef(false);
   const now = useNow(1000);
   const missing = useRef(false);
 
@@ -125,6 +131,31 @@ export default function App() {
     }
   };
 
+  // Check-in only counts when you are at the gym (unless the check is switched off in Settings).
+  const verifiedCheckIn = async () => {
+    if (checking.current) return;
+    checking.current = true;
+    try {
+      const r = await checkAtGym(state);
+      if (!r.ok) {
+        setNotice(r.message);
+        return;
+      }
+      await run(() => checkIn(state));
+    } catch (e) {
+      setError(`Could not check your location: ${message(e)}`);
+    } finally {
+      checking.current = false;
+    }
+  };
+
+  const finishSetup = () =>
+    run(async () => {
+      const patch = await scheduleAlarm(state);
+      setSetup(false);
+      return { ...patch, onboarded: true };
+    });
+
   let screen;
   switch (phase) {
     case 'ringing':
@@ -132,14 +163,14 @@ export default function App() {
       break;
     case 'countdown':
     case 'late':
-      screen = <CountdownScreen s={state} now={now} onCheckIn={() => run(() => checkIn(state))} />;
+      screen = <CountdownScreen s={state} now={now} onCheckIn={verifiedCheckIn} />;
       break;
     case 'takeover':
       screen = (
         <TakeoverScreen
           s={state}
           now={now}
-          onCheckIn={() => run(() => checkIn(state))}
+          onCheckIn={verifiedCheckIn}
           onSkip={() => run(() => skipToday(state))}
         />
       );
@@ -148,11 +179,27 @@ export default function App() {
       screen = <ClearedScreen s={state} onClose={() => run(() => closeToday())} />;
       break;
     default:
-      screen = showSettings ? (
+      screen = !state.onboarded || setup ? (
+        <Onboarding
+          s={state}
+          onChange={update}
+          onPermissions={ensurePermissions}
+          onBattery={() => run(async () => openBatterySettings())}
+          onFinish={finishSetup}
+          onSkip={() => {
+            update({ onboarded: true });
+            setSetup(false);
+          }}
+        />
+      ) : showSettings ? (
         <SettingsScreen
           s={state}
           onChange={update}
           onBack={() => setShowSettings(false)}
+          onSetup={() => {
+            setShowSettings(false);
+            setSetup(true);
+          }}
           onBattery={() => run(async () => openBatterySettings())}
         />
       ) : (
@@ -171,12 +218,15 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      <FadeIn key={`${phase}-${showSettings}`}>{screen}</FadeIn>
-      {error ? (
+      <FadeIn key={`${phase}-${showSettings}-${setup || !state.onboarded}`}>{screen}</FadeIn>
+      {error || notice ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Dismiss error"
-          onPress={() => setError(null)}
+          onPress={() => {
+            setError(null);
+            setNotice(null);
+          }}
           style={{
             position: 'absolute',
             left: 16,
@@ -190,10 +240,10 @@ export default function App() {
           }}
         >
           <Text style={{ fontFamily: font.semibold, fontSize: 15, lineHeight: 21, color: color.graphite }}>
-            {error}
+            {error ?? notice}
           </Text>
           <Text style={{ fontFamily: font.body, fontSize: 14, color: color.iron, marginTop: 6 }}>
-            Tap to dismiss. Send this message to Claude.
+            {error ? 'Tap to dismiss. Send this message to Claude.' : 'Tap to dismiss.'}
           </Text>
         </Pressable>
       ) : null}

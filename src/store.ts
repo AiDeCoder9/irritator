@@ -14,6 +14,15 @@ export type State = {
   alarmAt: number | null;
   dismissedAt: number | null;
   checkedInAt: number | null;
+  /** Gym location. Null until set up. */
+  gymLat: number | null;
+  gymLng: number | null;
+  gymLabel: string;
+  /** How close you must be to check in, in meters. */
+  gymRadius: number;
+  /** Off = "I'm at the gym" works anywhere. For testing at home. */
+  verifyLocation: boolean;
+  onboarded: boolean;
 };
 
 export const defaults: State = {
@@ -26,6 +35,12 @@ export const defaults: State = {
   alarmAt: null,
   dismissedAt: null,
   checkedInAt: null,
+  gymLat: null,
+  gymLng: null,
+  gymLabel: '',
+  gymRadius: 100,
+  verifyLocation: true,
+  onboarded: false,
 };
 
 const KEY = 'irritator.state.v1';
