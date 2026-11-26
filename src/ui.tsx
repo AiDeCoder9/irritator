@@ -44,9 +44,21 @@ export function HeatBar({ level, fill, track }: { level: number; fill: string; t
   );
 }
 
-export function Hero({ children, size = 184, tint }: { children: ReactNode; size?: number; tint: string }) {
+export function Hero({
+  children,
+  size = 184,
+  tint,
+  fit,
+}: {
+  children: ReactNode;
+  size?: number;
+  tint: string;
+  /** One line only: shrink the text to fit the width instead of wrapping. */
+  fit?: boolean;
+}) {
   return (
     <Text
+      {...(fit ? { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.4 } : {})}
       style={{
         fontFamily: font.display,
         fontSize: size,

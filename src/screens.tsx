@@ -306,7 +306,7 @@ export function RingingScreen({ s, now, onDismiss }: { s: State; now: number; on
         <T size={22} weight="bold" tint={color.graphite}>
           Time to get up
         </T>
-        <Hero tint={color.graphite}>{timeText(now)}</Hero>
+        <Hero fit tint={color.graphite}>{timeText(now)}</Hero>
         <T size={19} tint={color.graphite}>
           Dismiss to start your {s.countdownMin}-minute countdown.
         </T>
@@ -318,7 +318,17 @@ export function RingingScreen({ s, now, onDismiss }: { s: State; now: number; on
 
 /* ---------- Countdown and late (amber) ---------- */
 
-export function CountdownScreen({ s, now, onCheckIn }: { s: State; now: number; onCheckIn: () => void }) {
+export function CountdownScreen({
+  s,
+  now,
+  onCheckIn,
+  onSkip,
+}: {
+  s: State;
+  now: number;
+  onCheckIn: () => void;
+  onSkip: () => void;
+}) {
   useKeepAwake();
   const leaveBy = leaveByOf(s)!;
   const late = now >= leaveBy;
@@ -347,17 +357,25 @@ export function CountdownScreen({ s, now, onCheckIn }: { s: State; now: number; 
         <T size={22} weight="bold" tint={color.graphite}>
           {late ? `${lateMin} min past ${timeText(leaveBy)}` : `Leave by ${timeText(leaveBy)}`}
         </T>
-        <Hero tint={color.graphite}>{late ? clockText(now - leaveBy) : clockText(leaveBy - now)}</Hero>
+        <Hero fit size={160} tint={color.graphite}>
+          {late ? clockText(now - leaveBy) : clockText(leaveBy - now)}
+        </Hero>
         <T size={22} tint={color.graphite}>
           {late ? 'late.' : 'until you should be out the door.'}
         </T>
       </View>
 
       <View style={{ gap: 14 }}>
-        <T size={16} tint={color.graphite}>
-          Skipping today resets your streak to 0.
-        </T>
         <Button label="I'm at the gym" onPress={onCheckIn} bg={color.graphite} fg={color.white} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSkip}
+          style={({ pressed }) => ({ minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+        >
+          <T size={16} weight="semibold" tint={color.graphite} style={{ textDecorationLine: 'underline' }}>
+            Skip today (resets your streak to 0)
+          </T>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -370,11 +388,14 @@ export function TakeoverScreen({
   now,
   onCheckIn,
   onSkip,
+  onBack,
 }: {
   s: State;
   now: number;
   onCheckIn: () => void;
   onSkip: () => void;
+  /** Set when you opened this screen yourself to skip. */
+  onBack?: () => void;
 }) {
   useKeepAwake();
   const [why, setWhy] = useState('');
@@ -388,7 +409,7 @@ export function TakeoverScreen({
   return (
     <Screen bg={color.graphite}>
       <T size={16} weight="semibold" tint={color.mist}>
-        This stays until you leave. You're {lateMin} minutes late.
+        {lateMin > 0 ? `This stays until you leave. You're ${lateMin} minutes late.` : 'Before you skip, read this.'}
       </T>
 
       <View style={{ gap: 24 }}>
@@ -407,6 +428,7 @@ export function TakeoverScreen({
 
       <View style={{ gap: 14 }}>
         <Button label="I'm at the gym" onPress={onCheckIn} bg={color.amber} fg={color.graphite} />
+        {onBack ? <Button label="Back to countdown" onPress={onBack} outline={color.mist} fg={color.mist} /> : null}
         <T size={16} weight="semibold" tint={color.white}>
           Skipping today? Say why.
         </T>

@@ -54,6 +54,7 @@ export default function App() {
   // Plain messages (like "you're too far") are not bugs, so they get their own banner text.
   const [notice, setNotice] = useState<string | null>(null);
   const [setup, setSetup] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const checking = useRef(false);
   const now = useNow(1000);
   const missing = useRef(false);
@@ -142,6 +143,7 @@ export default function App() {
         return;
       }
       await run(() => checkIn(state));
+      setSkipping(false);
     } catch (e) {
       setError(`Could not check your location: ${message(e)}`);
     } finally {
@@ -163,7 +165,22 @@ export default function App() {
       break;
     case 'countdown':
     case 'late':
-      screen = <CountdownScreen s={state} now={now} onCheckIn={verifiedCheckIn} />;
+      screen = skipping ? (
+        <TakeoverScreen
+          s={state}
+          now={now}
+          onCheckIn={verifiedCheckIn}
+          onSkip={() =>
+            run(async () => {
+              setSkipping(false);
+              return skipToday(state);
+            })
+          }
+          onBack={() => setSkipping(false)}
+        />
+      ) : (
+        <CountdownScreen s={state} now={now} onCheckIn={verifiedCheckIn} onSkip={() => setSkipping(true)} />
+      );
       break;
     case 'takeover':
       screen = (
@@ -218,7 +235,7 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <StatusBar style={dark ? 'light' : 'dark'} />
-      <FadeIn key={`${phase}-${showSettings}-${setup || !state.onboarded}`}>{screen}</FadeIn>
+      <FadeIn key={`${phase}-${skipping}-${showSettings}-${setup || !state.onboarded}`}>{screen}</FadeIn>
       {error || notice ? (
         <Pressable
           accessibilityRole="button"
