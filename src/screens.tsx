@@ -1,8 +1,8 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useEffect, useState } from 'react';
-import { ScrollView, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { clockText, leaveByOf, pad, timeText } from './phase';
+import { clockText, DAY_NAMES, dayName, leaveByOf, pad, timeText } from './phase';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
 import { Button, HeatBar, Hero, Screen, Stepper, T, topInset } from './ui';
@@ -44,7 +44,7 @@ export function SetupScreen({
         {waiting ? (
           <View style={{ gap: 4 }}>
             <T size={22} weight="bold" tint={color.graphite}>
-              Rings at {timeText(s.alarmAt!)}
+              Rings {dayName(s.alarmAt!)} at {timeText(s.alarmAt!)}
             </T>
             <T size={17} tint={color.iron}>
               In {clockText(s.alarmAt! - now)} (mm:ss). Day {s.streak + 1} is waiting.
@@ -66,6 +66,49 @@ export function SetupScreen({
 
         <View style={{ gap: 10 }}>
           <T size={17} weight="semibold" tint={color.graphite}>
+            Repeat on
+          </T>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+              const on = s.days[d];
+              const onlyOne = on && s.days.filter(Boolean).length === 1;
+              return (
+                <Pressable
+                  key={d}
+                  accessibilityRole="button"
+                  accessibilityLabel={DAY_NAMES[d]}
+                  accessibilityState={{ selected: on }}
+                  onPress={() => {
+                    if (onlyOne) return;
+                    const next = [...s.days];
+                    next[d] = !on;
+                    onChange({ days: next });
+                  }}
+                  style={{
+                    width: 42,
+                    height: 48,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: color.graphite,
+                    backgroundColor: on ? color.graphite : 'transparent',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontFamily: font.semibold, fontSize: 15, color: on ? color.white : color.graphite }}>
+                    {DAY_NAMES[d].slice(0, 2)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <T size={15} tint={color.iron}>
+            At least one day stays on. Changes apply the next time you press Set alarm or Update alarm.
+          </T>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
             Time to leave after the alarm
           </T>
           <Stepper
@@ -78,6 +121,22 @@ export function SetupScreen({
           />
           <T size={15} tint={color.iron}>
             Pick 5 to 30 minutes, in steps of 5. The countdown starts when you dismiss the alarm.
+          </T>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
+            Days done in a row
+          </T>
+          <Stepper
+            label="days"
+            value={String(s.streak)}
+            atMin={s.streak <= 0}
+            onDec={() => onChange({ streak: Math.max(0, s.streak - 1) })}
+            onInc={() => onChange({ streak: Math.min(999, s.streak + 1) })}
+          />
+          <T size={15} tint={color.iron}>
+            Today will be day {s.streak + 1}. Change this to match your real streak. Checking in adds one; skipping resets it to 0.
           </T>
         </View>
 
@@ -310,9 +369,11 @@ export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void })
       </View>
       <View style={{ gap: 14 }}>
         <T size={16} tint={color.white}>
-          Tomorrow: alarm at {pad(s.alarmHour)}:{pad(s.alarmMinute)}. You get {s.countdownMin} minutes to leave.
+          {s.alarmAt != null
+            ? `Next alarm: ${dayName(s.alarmAt)} at ${timeText(s.alarmAt)}. You get ${s.countdownMin} minutes to leave.`
+            : 'No alarm is set.'}
         </T>
-        <Button label="Set tomorrow's alarm" onPress={onClose} bg={color.white} fg={color.graphite} />
+        <Button label="Done" onPress={onClose} bg={color.white} fg={color.graphite} />
       </View>
     </Screen>
   );

@@ -100,7 +100,7 @@ export async function scheduleAlarm(s: State, whenMs?: number): Promise<Partial<
   await cancelNags();
   await notifee.cancelNotification('alarm');
 
-  const alarmAt = whenMs ?? nextOccurrence(s.alarmHour, s.alarmMinute);
+  const alarmAt = whenMs ?? nextOccurrence(s.alarmHour, s.alarmMinute, s.days);
 
   await notifee.createTriggerNotification(
     {
@@ -131,12 +131,14 @@ export async function cancelAlarm(): Promise<Partial<State>> {
   return { alarmAt: null, dismissedAt: null, checkedInAt: null };
 }
 
-/** Stops the ringing and starts the countdown plus the escalating nags. */
-export async function dismissAlarm(s: State): Promise<Partial<State>> {
-  await notifee.cancelNotification('alarm');
-  const dismissedAt = Date.now();
-  await scheduleNags({ ...s, dismissedAt });
-  return { dismissedAt };
+/** Stops the ringing and schedules the escalating nags. The caller saves dismissedAt first, so the countdown always starts. */
+export async function dismissAlarm(s: State & { dismissedAt: number }): Promise<void> {
+  try {
+    await notifee.cancelNotification('alarm');
+  } catch {
+    // The alarm notification may already be gone.
+  }
+  await scheduleNags(s);
 }
 
 async function scheduleNags(s: State & { dismissedAt: number }) {
@@ -211,10 +213,11 @@ async function scheduleNags(s: State & { dismissedAt: number }) {
           channelId: n.channel,
           importance: n.loud ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
           visibility: AndroidVisibility.PUBLIC,
-          category: n.full ? AndroidCategory.ALARM : undefined,
-          loopSound: n.full ? true : undefined,
           pressAction: { id: 'default' },
-          fullScreenAction: n.full ? { id: 'default' } : undefined,
+          // The library throws on optional fields set to undefined, so add them only when needed.
+          ...(n.full
+            ? { category: AndroidCategory.ALARM, loopSound: true, fullScreenAction: { id: 'default' } }
+            : {}),
         },
       },
       at(n.ts),
@@ -228,20 +231,21 @@ export async function cancelNags() {
   }
 }
 
-/** Test stand-in until gym check-in (location plus steps) exists. */
+/** Test stand-in until gym check-in (location plus steps) exists. Schedules the next alarm straight away. */
 export async function checkIn(s: State): Promise<Partial<State>> {
   await cancelNags();
-  return { checkedInAt: Date.now(), streak: s.streak + 1 };
+  const next = await scheduleAlarm(s);
+  return { ...next, checkedInAt: Date.now(), streak: s.streak + 1 };
 }
 
-/** Skipping resets the streak and sets up tomorrow's alarm. */
+/** Skipping (or missing the day) resets the streak and sets up the next alarm. */
 export async function skipToday(s: State): Promise<Partial<State>> {
   await cancelNags();
   const next = await scheduleAlarm(s);
   return { ...next, streak: 0 };
 }
 
-/** After the cleared screen: schedule tomorrow's alarm. */
-export async function closeToday(s: State): Promise<Partial<State>> {
-  return scheduleAlarm(s);
+/** Hides the cleared screen. The next alarm is already scheduled. */
+export async function closeToday(): Promise<Partial<State>> {
+  return { checkedInAt: null };
 }
