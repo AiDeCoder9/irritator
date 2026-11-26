@@ -39,3 +39,14 @@ Use the 5-minute countdown. Use "Test: ring in 30 seconds" each time.
 4. Same, but leave the phone untouched for 30 minutes before pressing nothing (set alarm, then wait).
 5. After dismissing: do the nags arrive at the right times, and does the full screen appear at +10 minutes?
 For anything that fails, note how late it was or whether it never came. Keep your normal Samsung Clock alarm as a backup for the first few mornings.
+
+## Build the APK in the cloud (GitHub Actions)
+Every push to `main` builds a release APK (arm64, no computer needed to run it) and publishes it as a GitHub release named "Build N". You can also run it by hand: repo > Actions > Build Android APK > Run workflow.
+
+Get the APK on your phone:
+1. Open the repo's Releases page in your phone browser (signed in to GitHub) and download the .apk.
+2. Allow "Install unknown apps" for the browser when Android asks, then install.
+
+Get an email when a build is ready (optional):
+- Easiest: on the repo, Watch > Custom > Releases. GitHub emails you for each new release.
+- Or send the email yourself: repo > Settings > Secrets and variables > Actions, add `MAIL_USERNAME` (your Gmail address), `MAIL_PASSWORD` (a Gmail app password, not your normal password) and `MAIL_TO` (where to send). The workflow then emails the download link. The APK itself is too large to attach to an email.
