@@ -195,6 +195,20 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
                 />
               ))}
             </View>
+            <T size={17} weight="semibold" tint={color.graphite}>
+              Minutes to travel to the gym
+            </T>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {[10, 15, 20, 30, 45, 60].map((m) => (
+                <Chip
+                  key={m}
+                  label={String(m)}
+                  a11y={`${m} minutes`}
+                  on={s.travelMin === m}
+                  onPress={() => onChange({ travelMin: m })}
+                />
+              ))}
+            </View>
           </>
         )}
 

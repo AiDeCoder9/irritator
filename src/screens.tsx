@@ -5,6 +5,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { clockText, DAY_NAMES, dayName, inText, leaveByOf, pad, time12, timeText } from './phase';
 import { hasGym } from './gym';
+import { levelAt, messageFor } from './motivation';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
 import { Button, Chip, Hero, Screen, Stepper, T, topInset } from './ui';
@@ -135,6 +136,23 @@ export function HomeScreen({
           <T size={15} tint={color.iron}>
             The countdown starts when you dismiss the alarm.
           </T>
+        </View>
+
+        <View style={{ gap: 12 }}>
+          <T size={17} weight="semibold" tint={color.graphite}>
+            Minutes to travel to the gym
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[10, 15, 20, 30, 45, 60].map((m) => (
+              <Chip
+                key={m}
+                label={String(m)}
+                a11y={`${m} minutes`}
+                on={s.travelMin === m}
+                onPress={() => onChange({ travelMin: m })}
+              />
+            ))}
+          </View>
         </View>
 
         <View style={{ flex: 1, minHeight: 8 }} />
@@ -348,8 +366,8 @@ export function CountdownScreen({
         </View>
         <T size={16} weight="semibold" tint={color.graphite}>
           {late
-            ? `Reminders are getting louder. The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.`
-            : 'Reminders get louder as your time runs out.'}
+            ? `The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.`
+            : 'A new message every 5 minutes, stronger each time.'}
         </T>
       </View>
 
@@ -362,6 +380,15 @@ export function CountdownScreen({
         </Hero>
         <T size={22} tint={color.graphite}>
           {late ? 'late.' : 'until you should be out the door.'}
+        </T>
+        <T size={17} weight="semibold" tint={color.graphite}>
+          {`The gym is ${s.travelMin} min away. ${late ? 'Every minute now pushes your arrival later.' : `Leave on time and you're there by ${timeText(leaveBy + s.travelMin * 60_000)}.`}`}
+        </T>
+      </View>
+
+      <View style={{ borderWidth: 2, borderColor: color.graphite, borderRadius: 14, padding: 16 }}>
+        <T size={20} weight="bold" tint={color.graphite} style={{ lineHeight: 27 }}>
+          {messageFor(levelAt(s.dismissedAt!, now), s)}
         </T>
       </View>
 

@@ -9,6 +9,7 @@ import notifee, {
   TriggerType,
 } from 'react-native-notify-kit';
 
+import { levelAt, messageFor, MESSAGE_EVERY_MIN } from './motivation';
 import { nextOccurrence } from './phase';
 import type { State } from './store';
 import { TAKEOVER_AFTER_MIN } from './theme';
@@ -22,7 +23,16 @@ const CH = {
   takeover: 'irritator-takeover',
 };
 
-const NAG_IDS = ['nag-half', 'nag-leave', 'nag-late-1', 'nag-late-2', 'nag-late-3', 'nag-takeover'];
+const NAG_IDS = [
+  'nag-takeover',
+  ...Array.from({ length: 16 }, (_, i) => `nag-${i + 1}`),
+  // Older builds used these.
+  'nag-half',
+  'nag-leave',
+  'nag-late-1',
+  'nag-late-2',
+  'nag-late-3',
+];
 
 export async function ensureChannels() {
   await notifee.createChannel({
@@ -150,57 +160,31 @@ async function scheduleNags(s: State & { dismissedAt: number }) {
   const day = s.streak + 1;
   const now = Date.now();
 
-  const plan: { id: string; ts: number; title: string; body: string; channel: string; loud: boolean; full?: boolean }[] = [
-    {
-      id: 'nag-half',
-      ts: s.dismissedAt + total / 2,
-      title: 'Half your time is gone',
-      body: `You have ${Math.round(s.countdownMin / 2)} minutes left to get out the door.`,
-      channel: CH.quiet,
-      loud: false,
-    },
-    {
-      id: 'nag-leave',
-      ts: leaveBy,
-      title: 'Time to leave',
-      body: 'Shoes on. Out the door now.',
-      channel: CH.nag,
-      loud: true,
-    },
-    {
-      id: 'nag-late-1',
-      ts: leaveBy + 3 * MIN,
-      title: "You're 3 minutes late",
-      body: 'Every minute you wait makes it easier to skip.',
-      channel: CH.nag,
-      loud: true,
-    },
-    {
-      id: 'nag-late-2',
-      ts: leaveBy + 6 * MIN,
-      title: "You're 6 minutes late",
-      body: `Day ${day} is still yours. Go now.`,
-      channel: CH.nag,
-      loud: true,
-    },
-    {
-      id: 'nag-late-3',
-      ts: leaveBy + 9 * MIN,
-      title: "You're 9 minutes late",
-      body: 'The next one fills your screen.',
-      channel: CH.nag,
-      loud: true,
-    },
-    {
-      id: 'nag-takeover',
-      ts: leaveBy + TAKEOVER_AFTER_MIN * MIN,
-      title: `Day ${day} starts at the gym.`,
-      body: s.reason,
-      channel: CH.takeover,
-      loud: true,
-      full: true,
-    },
-  ];
+  const takeoverAt = leaveBy + TAKEOVER_AFTER_MIN * MIN;
+  const plan: { id: string; ts: number; title: string; body: string; channel: string; loud: boolean; full?: boolean }[] = [];
+
+  // A message every 5 minutes, each stronger than the last. The first one is on the countdown screen itself.
+  for (let k = 1; s.dismissedAt + k * MESSAGE_EVERY_MIN * MIN < takeoverAt; k++) {
+    const ts = s.dismissedAt + k * MESSAGE_EVERY_MIN * MIN;
+    const left = Math.round((leaveBy - ts) / MIN);
+    plan.push({
+      id: `nag-${k}`,
+      ts,
+      title: left > 0 ? `${left} min left to leave` : left === 0 ? 'Time to leave' : `${-left} min late`,
+      body: messageFor(levelAt(s.dismissedAt, ts), s),
+      channel: ts < leaveBy ? CH.quiet : CH.nag,
+      loud: ts >= leaveBy,
+    });
+  }
+  plan.push({
+    id: 'nag-takeover',
+    ts: takeoverAt,
+    title: `Day ${day} starts at the gym.`,
+    body: messageFor(levelAt(s.dismissedAt, takeoverAt), s),
+    channel: CH.takeover,
+    loud: true,
+    full: true,
+  });
 
   for (const n of plan) {
     if (n.ts <= now + 1000) continue;

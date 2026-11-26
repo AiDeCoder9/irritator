@@ -7,6 +7,8 @@ export type State = {
   days: boolean[];
   /** Minutes you get after dismissing the alarm: 5 to 30, steps of 5. */
   countdownMin: number;
+  /** Minutes it takes to reach the gym after you leave. */
+  travelMin: number;
   reason: string;
   /** Days completed in a row. Today is day streak + 1. */
   streak: number;
@@ -30,6 +32,7 @@ export const defaults: State = {
   alarmMinute: 0,
   days: [true, true, true, true, true, true, true],
   countdownMin: 20,
+  travelMin: 20,
   reason: "I'm not going back to who I was in October.",
   streak: 4,
   alarmAt: null,
