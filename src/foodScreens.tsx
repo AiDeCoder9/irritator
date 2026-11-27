@@ -7,6 +7,9 @@ import {
   dayTypeOf,
   EAT_HOURS,
   Goal,
+  hasProfile,
+  isMinor,
+  Sex,
   GOAL_KCAL,
   GOAL_LABEL,
   MIN_KCAL,
@@ -170,6 +173,11 @@ export function FoodScreen({
                 ? `${totals.protein} g protein. Add your weight in Water settings for a protein target.`
                 : `${totals.protein} of ${goal.protein} g protein`}
             </T>
+            {goal.protein != null && !hasProfile(weightKg, f.targets) ? (
+              <T size={13} tint={color.text2}>
+                Tap to add age and height for a better estimate.
+              </T>
+            ) : null}
           </Card>
         </Pressable>
 
@@ -547,7 +555,10 @@ export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightK
   const { f, change } = api;
   const tg = f.targets;
   const set = (p: Partial<typeof tg>) => change((x) => ({ ...x, targets: { ...x.targets, ...p } }));
-  const suggested = suggestedRestKcal(tg.goal, weightKg);
+  const suggested = suggestedRestKcal(tg.goal, weightKg, tg);
+  const better = hasProfile(weightKg, tg);
+  const bump = (key: 'age' | 'heightCm', d: number, start: number, lo: number, hi: number) =>
+    set({ [key]: Math.min(hi, Math.max(lo, (tg[key] ?? start - d) + d)), restKcal: null });
   const rest = tg.restKcal ?? suggested;
   const step = (d: number) => set({ restKcal: Math.min(5000, Math.max(800, rest + d)) });
 
@@ -580,10 +591,32 @@ export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightK
         </View>
 
         <Card pad={16} style={{ gap: 12 }}>
+          <T size={15} weight="bold">
+            About you (optional)
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {([['male', 'Male'], ['female', 'Female']] as [Sex, string][]).map(([k, l]) => (
+              <Chip key={k} label={l} on={tg.sex === k} onPress={() => set({ sex: tg.sex === k ? null : k, restKcal: null })} />
+            ))}
+          </View>
+          <Stepper label="Age" value={tg.age == null ? 'Not set' : `${tg.age}`} onDec={() => bump('age', -1, 25, 10, 90)} onInc={() => bump('age', 1, 25, 10, 90)} atMin={tg.age != null && tg.age <= 10} atMax={tg.age != null && tg.age >= 90} />
+          <Stepper label="Height" value={tg.heightCm == null ? 'Not set' : `${tg.heightCm} cm`} onDec={() => bump('heightCm', -1, 170, 120, 230)} onInc={() => bump('heightCm', 1, 170, 120, 230)} atMin={tg.heightCm != null && tg.heightCm <= 120} atMax={tg.heightCm != null && tg.heightCm >= 230} />
+          {tg.sex || tg.age != null || tg.heightCm != null ? <LinkButton label="Clear these" onPress={() => set({ sex: null, age: null, heightCm: null, restKcal: null })} /> : null}
+          <T size={14} tint={color.text2}>
+            {better ? 'Using age, height and weight for a better estimate.' : 'Add age and height, and your weight in Water settings, for a better estimate. They stay on your phone.'}
+          </T>
+          {isMinor(tg) ? (
+            <T size={14} weight="semibold" tint={color.yellow}>
+              Under 18: no lose or build adjustment is applied. Ask a doctor about calorie goals.
+            </T>
+          ) : null}
+        </Card>
+
+        <Card pad={16} style={{ gap: 12 }}>
           <Stepper label="Rest-day calories" value={`${rest} kcal`} onDec={() => step(-50)} onInc={() => step(50)} atMin={rest <= 800} atMax={rest >= 5000} />
           {tg.restKcal != null ? <LinkButton label={`Use the estimate (${suggested} kcal)`} onPress={() => set({ restKcal: null })} /> : null}
           <T size={14} tint={color.text2}>
-            {weightKg == null ? 'The estimate uses a default because your weight is not set yet. Add it in Water settings.' : `The estimate is about 31 kcal per kg of your ${weightKg} kg, adjusted for your goal.`}
+            {weightKg == null ? 'The estimate uses a default because your weight is not set yet. Add it in Water settings.' : better ? `The estimate uses your age, height and ${weightKg} kg, adjusted for your goal.` : `The estimate is about 31 kcal per kg of your ${weightKg} kg, adjusted for your goal.`}
           </T>
         </Card>
 

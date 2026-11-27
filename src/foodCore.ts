@@ -13,8 +13,13 @@ export type Fast = {
   notify: boolean;
 };
 export type Goal = 'lose' | 'maintain' | 'build';
+export type Sex = 'male' | 'female';
 export type Targets = {
   goal: Goal;
+  /** Optional details that make the estimate better. All can stay empty. */
+  sex: Sex | null;
+  age: number | null;
+  heightCm: number | null;
   /** Your own rest-day calories. null means use the estimate from weight and goal. */
   restKcal: number | null;
 };
@@ -26,7 +31,7 @@ export const foodDefaults: Food = {
   meals: [],
   saved: [],
   fdcKey: '',
-  targets: { goal: 'maintain', restKcal: null },
+  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
 };
 
@@ -196,14 +201,36 @@ export const GOAL_PROTEIN: Record<Goal, number> = { lose: 1.8, maintain: 1.4, bu
 export const MIN_KCAL = 1500;
 export const DEFAULT_KCAL = 2200;
 
-/** A rough rest-day maintenance estimate: about 31 kcal per kg, to the nearest 50. A guess, not a measurement. */
-export function maintenanceKcal(weightKg: number | null): number {
-  return weightKg == null ? DEFAULT_KCAL : Math.round((weightKg * 31) / 50) * 50;
+/** Rest-day activity multiplier. Training days add their own calories on top, so this is a light everyday level. */
+export const REST_ACTIVITY = 1.4;
+
+type Profile = Pick<Targets, 'sex' | 'age' | 'heightCm'>;
+
+/** True when age, height and weight are all known, so the better formula can be used. */
+export const hasProfile = (weightKg: number | null, p?: Profile) => weightKg != null && p?.age != null && p?.heightCm != null;
+
+/**
+ * A rough rest-day maintenance estimate. With age, height and weight it uses the Mifflin-St Jeor formula times a light activity level.
+ * Without them it uses about 31 kcal per kg. Rounded to the nearest 50. A guess, not a measurement.
+ */
+export function maintenanceKcal(weightKg: number | null, p?: Profile): number {
+  if (weightKg == null) return DEFAULT_KCAL;
+  if (p && hasProfile(weightKg, p)) {
+    // Sex constant: +5 male, -161 female, about -78 (the middle) when not given.
+    const c = p.sex === 'male' ? 5 : p.sex === 'female' ? -161 : -78;
+    const bmr = 10 * weightKg + 6.25 * (p.heightCm as number) - 5 * (p.age as number) + c;
+    return Math.round((bmr * REST_ACTIVITY) / 50) * 50;
+  }
+  return Math.round((weightKg * 31) / 50) * 50;
 }
 
+/** Under 18 the goal adjustment is skipped: calorie goals for growing people should come from a doctor. */
+export const isMinor = (p?: Profile) => p?.age != null && p.age < 18;
+
 /** The estimated rest-day calories for a goal, before any override. */
-export function suggestedRestKcal(goal: Goal, weightKg: number | null): number {
-  return Math.max(MIN_KCAL, maintenanceKcal(weightKg) + GOAL_KCAL[goal]);
+export function suggestedRestKcal(goal: Goal, weightKg: number | null, p?: Profile): number {
+  const delta = isMinor(p) ? 0 : GOAL_KCAL[goal];
+  return Math.max(MIN_KCAL, maintenanceKcal(weightKg, p) + delta);
 }
 
 /** What kind of day it is: a gym or run day when the alarm is on that weekday, otherwise rest. */
@@ -214,7 +241,7 @@ export function dayTypeOf(days: boolean[], kinds: ('gym' | 'run')[], ts: number)
 
 /** Calories and protein for one day. Your own rest-day number is always respected. */
 export function targetFor(t: Targets, weightKg: number | null, day: DayType) {
-  const rest = t.restKcal ?? suggestedRestKcal(t.goal, weightKg);
+  const rest = t.restKcal ?? suggestedRestKcal(t.goal, weightKg, t);
   return {
     rest,
     kcal: rest + DAY_KCAL[day],

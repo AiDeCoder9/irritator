@@ -43,10 +43,14 @@ export function TodayScreen({
   onTest,
   onSchedule,
   onPlaces,
+  food,
+  onFood,
 }: {
   s: State;
   now: number;
   notes: string[];
+  food?: { eaten: number; target: number; day: string };
+  onFood?: () => void;
   onToggle: () => void;
   onTest: () => void;
   onSchedule: () => void;
@@ -156,6 +160,22 @@ export function TodayScreen({
           </Card>
         </Pressable>
         )}
+
+        {food && onFood ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Food" onPress={onFood} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+            <Card pad={18} style={{ gap: 4 }}>
+              <T size={14} weight="semibold" tint={color.text2}>
+                {`Food, ${food.day.toLowerCase()} target`}
+              </T>
+              <T size={20} weight="bold">
+                {`${food.eaten} of ${food.target} kcal`}
+              </T>
+              <T size={14} tint={color.text2}>
+                {food.eaten > food.target ? `${food.eaten - food.target} over.` : `${food.target - food.eaten} left.`} Tap to log a meal.
+              </T>
+            </Card>
+          </Pressable>
+        ) : null}
 
         {notes.map((n) => (
           <T key={n} size={15} weight="semibold" tint={color.yellow}>

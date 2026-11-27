@@ -43,7 +43,7 @@ import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
 import { AddMealScreen, FastingScreen, FoodScreen, TargetsScreen, useFood } from './src/foodScreens';
-import type { Meal } from './src/food';
+import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
 import { bumpsFor } from './src/waterCore';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
@@ -80,6 +80,9 @@ export default function App() {
   const water = useWater();
   const food = useFood();
   const [editMeal, setEditMeal] = useState<Meal | null>(null);
+  const foodToday = totalsOf(food.f, now);
+  const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
+  const foodDay = { gym: 'Gym day', run: 'Run day', rest: 'Rest day' }[dayTypeOf(state.days, state.kinds, now)];
   const missing = useRef(false);
 
   useEffect(() => {
@@ -374,6 +377,8 @@ export default function App() {
           onTest={onTest}
           onSchedule={() => go('schedule', 'today')}
           onPlaces={() => go('places', 'today')}
+          food={{ eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
+          onFood={() => setRoute('food')}
         />
       );
   }
