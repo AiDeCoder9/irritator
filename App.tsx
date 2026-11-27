@@ -42,13 +42,15 @@ import {
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
+import { HealthScreen } from './src/healthScreens';
+import { findRecentRun, runSummary } from './src/health';
 import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
 import { bumpsFor } from './src/waterCore';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -333,7 +335,10 @@ export default function App() {
           onPlaces={() => go('places', 'settings')}
           onSetup={() => setSetup(true)}
           onBattery={() => run(async () => openBatterySettings())}
+          onHealth={() => setRoute('health')}
         />
+      ) : route === 'health' ? (
+        <HealthScreen onBack={() => setRoute('settings')} />
       ) : route === 'food' ? (
         <FoodScreen
           api={food}
@@ -399,7 +404,14 @@ export default function App() {
 
   const working = ['countdown', 'late', 'onway', 'takeover'].includes(phase);
   if (working && excusing) screen = <ExcuseScreen onExcuse={excuse} onBack={() => setExcusing(false)} />;
-  else if (working && runDone) screen = <RunDoneScreen onSave={(note) => verifiedCheckIn(note)} onBack={() => setRunDone(false)} />;
+  else if (working && runDone) screen = <RunDoneScreen
+      onSave={(note) => verifiedCheckIn(note)}
+      onBack={() => setRunDone(false)}
+      onFind={async () => {
+        const r = await findRecentRun();
+        return 'run' in r ? { summary: runSummary(r.run) } : r;
+      }}
+    />;
 
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>

@@ -1,6 +1,6 @@
 import { useKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { activeGym, travelOf } from './gym';
 import { kindOf } from './kinds';
@@ -312,6 +312,7 @@ export function SettingsScreen({
   onPlaces,
   onBattery,
   onSetup,
+  onHealth,
 }: {
   s: State;
   onChange: Patch;
@@ -319,6 +320,7 @@ export function SettingsScreen({
   onPlaces: () => void;
   onBattery: () => void;
   onSetup: () => void;
+  onHealth: () => void;
 }) {
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -383,6 +385,7 @@ export function SettingsScreen({
 
         <Card pad={8}>
           <Row first title="Keep the alarm reliable" sub="Samsung: Battery, Never sleeping apps" right={<Chevron />} onPress={onBattery} />
+          {Platform.OS === 'android' ? <Row title="Health Connect" sub="Count runs from your watch" right={<Chevron />} onPress={onHealth} /> : null}
           <Row title="Run setup again" right={<Chevron />} onPress={onSetup} />
         </Card>
       </ScrollView>
@@ -728,14 +731,69 @@ export function ExcuseScreen({ onExcuse, onBack }: { onExcuse: (why: string) => 
 
 /* ---------- Run done ---------- */
 
-export function RunDoneScreen({ onSave, onBack }: { onSave: (note: string) => void; onBack: () => void }) {
+export function RunDoneScreen({
+  onSave,
+  onBack,
+  onFind,
+}: {
+  onSave: (note: string) => void;
+  onBack: () => void;
+  onFind?: () => Promise<{ summary: string } | { message: string }>;
+}) {
   const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [found, setFound] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const find = async () => {
+    if (!onFind) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const r = await onFind();
+      if ('summary' in r) {
+        setNote(r.summary);
+        setFound(r.summary);
+      } else {
+        setMessage(r.message);
+      }
+    } catch {
+      setMessage('Could not check your watch. Type your run below.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: color.black, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 16 }}>
       <Back label="Back" onPress={onBack} />
       <Hero size={40} tint={color.text}>
         How was the run?
       </Hero>
+      {onFind ? (
+        <View style={{ gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={find}
+            disabled={busy}
+            style={({ pressed }) => ({ minHeight: 56, borderRadius: 16, backgroundColor: color.surface2, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}
+          >
+            <T size={17} weight="bold">
+              {busy ? 'Checking your watch…' : 'Find my run from my watch'}
+            </T>
+          </Pressable>
+          {found ? (
+            <T size={15} weight="semibold" tint={color.ok}>
+              {`Found: ${found}`}
+            </T>
+          ) : null}
+          {message ? (
+            <T size={14} weight="semibold" tint={color.yellow}>
+              {message}
+            </T>
+          ) : null}
+        </View>
+      ) : null}
       <T size={17} tint={color.text2}>
         One line is enough. Distance, time, how it felt.
       </T>
@@ -744,7 +802,7 @@ export function RunDoneScreen({ onSave, onBack }: { onSave: (note: string) => vo
         onChangeText={setNote}
         placeholder="5 km in 32 minutes, felt good"
         placeholderTextColor={color.text2}
-        autoFocus
+        autoFocus={!onFind}
         style={{ height: 56, borderRadius: 16, backgroundColor: color.surface, paddingHorizontal: 18, fontFamily: font.body, fontSize: 17, color: color.text }}
       />
       <View style={{ flex: 1 }} />
