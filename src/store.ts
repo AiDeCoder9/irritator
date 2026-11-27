@@ -1,5 +1,8 @@
 import Storage from 'expo-sqlite/kv-store';
 
+export type Gym = { id: string; label: string; lat: number; lng: number; travelMin: number };
+export type Home = { lat: number; lng: number; label: string };
+
 export type State = {
   alarmHour: number;
   alarmMinute: number;
@@ -7,8 +10,6 @@ export type State = {
   days: boolean[];
   /** Minutes you get after dismissing the alarm: 5 to 30, steps of 5. */
   countdownMin: number;
-  /** Minutes it takes to reach the gym after you leave. */
-  travelMin: number;
   reason: string;
   /** Days completed in a row. Today is day streak + 1. */
   streak: number;
@@ -16,10 +17,14 @@ export type State = {
   alarmAt: number | null;
   dismissedAt: number | null;
   checkedInAt: number | null;
-  /** Gym location. Null until set up. */
-  gymLat: number | null;
-  gymLng: number | null;
-  gymLabel: string;
+  /** Every gym you go to. Check-in works at any of them. */
+  gyms: Gym[];
+  /** The gym you are heading to today. */
+  activeGymId: string | null;
+  /** Used to see you leave. Optional. */
+  home: Home | null;
+  /** When the phone saw you leave home after this alarm. */
+  leftHomeAt: number | null;
   /** How close you must be to check in, in meters. */
   gymRadius: number;
   /** Off = "I'm at the gym" works anywhere. For testing at home. */
@@ -32,15 +37,15 @@ export const defaults: State = {
   alarmMinute: 0,
   days: [true, true, true, true, true, true, true],
   countdownMin: 20,
-  travelMin: 20,
   reason: "I'm not going back to who I was in October.",
   streak: 4,
   alarmAt: null,
   dismissedAt: null,
   checkedInAt: null,
-  gymLat: null,
-  gymLng: null,
-  gymLabel: '',
+  gyms: [],
+  activeGymId: null,
+  home: null,
+  leftHomeAt: null,
   gymRadius: 100,
   verifyLocation: true,
   onboarded: false,
@@ -52,7 +57,21 @@ export function loadState(): State {
   try {
     const raw = Storage.getItemSync(KEY);
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const saved = JSON.parse(raw);
+    // Older builds saved a single gym in flat fields.
+    if (!saved.gyms && saved.gymLat != null && saved.gymLng != null) {
+      saved.gyms = [
+        {
+          id: 'g1',
+          label: saved.gymLabel || 'My gym',
+          lat: saved.gymLat,
+          lng: saved.gymLng,
+          travelMin: saved.travelMin ?? 20,
+        },
+      ];
+      saved.activeGymId = 'g1';
+    }
+    return { ...defaults, ...saved };
   } catch {
     return defaults;
   }

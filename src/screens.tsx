@@ -3,12 +3,13 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { clockText, DAY_NAMES, dayName, inText, leaveByOf, pad, time12, timeText } from './phase';
-import { hasGym } from './gym';
+import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeText } from './phase';
+import { activeGym, travelOf } from './gym';
+import { Places } from './places';
 import { levelAt, messageFor } from './motivation';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
-import { Button, Chip, Hero, Screen, Stepper, T, topInset } from './ui';
+import { Button, Chip, Hero, Rail, Screen, Stepper, T, topInset } from './ui';
 
 type Patch = (p: Partial<State>) => void;
 
@@ -138,23 +139,6 @@ export function HomeScreen({
           </T>
         </View>
 
-        <View style={{ gap: 12 }}>
-          <T size={17} weight="semibold" tint={color.graphite}>
-            Minutes to travel to the gym
-          </T>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {[10, 15, 20, 30, 45, 60].map((m) => (
-              <Chip
-                key={m}
-                label={String(m)}
-                a11y={`${m} minutes`}
-                on={s.travelMin === m}
-                onPress={() => onChange({ travelMin: m })}
-              />
-            ))}
-          </View>
-        </View>
-
         <View style={{ flex: 1, minHeight: 8 }} />
 
         <View style={{ gap: 14 }}>
@@ -240,12 +224,10 @@ export function SettingsScreen({
 
         <View style={{ gap: 10 }}>
           <T size={17} weight="semibold" tint={color.graphite}>
-            Your gym
+            Places
           </T>
-          <T size={17} tint={color.graphite}>
-            {hasGym(s) ? `${s.gymLabel}, within ${s.gymRadius} m` : 'Not set yet.'}
-          </T>
-          <Button label="Change gym and schedule" onPress={onSetup} outline={color.graphite} fg={color.graphite} />
+          <Places s={s} onChange={onChange} />
+          <Button label="Run setup again" onPress={onSetup} outline={color.graphite} fg={color.graphite} />
           <T size={17} weight="semibold" tint={color.graphite} style={{ marginTop: 8 }}>
             Check my location at check-in
           </T>
@@ -341,29 +323,25 @@ export function CountdownScreen({
   now,
   onCheckIn,
   onSkip,
+  onPickGym,
 }: {
   s: State;
   now: number;
   onCheckIn: () => void;
   onSkip: () => void;
+  onPickGym: (id: string) => void;
 }) {
   useKeepAwake();
   const leaveBy = leaveByOf(s)!;
+  const travel = travelOf(s);
+  const gym = activeGym(s);
   const late = now >= leaveBy;
-  const total = s.countdownMin * 60_000;
-  const used = Math.min(1, Math.max(0, (now - s.dismissedAt!) / total));
   const lateMin = Math.floor((now - leaveBy) / 60_000);
 
   return (
     <Screen bg={color.amber}>
       <View style={{ gap: 12 }}>
-        <View
-          accessibilityRole="progressbar"
-          accessibilityLabel="Countdown progress"
-          style={{ height: 10, borderRadius: 5, backgroundColor: '#D99A24', overflow: 'hidden' }}
-        >
-          <View style={{ width: `${used * 100}%`, height: '100%', backgroundColor: color.graphite }} />
-        </View>
+        <Rail stage={1} hasHome={s.home != null} leftAt={null} fmt={timeText} />
         <T size={16} weight="semibold" tint={color.graphite}>
           {late
             ? `The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.`
@@ -382,7 +360,8 @@ export function CountdownScreen({
           {late ? 'late.' : 'until you should be out the door.'}
         </T>
         <T size={17} weight="semibold" tint={color.graphite}>
-          {`The gym is ${s.travelMin} min away. ${late ? 'Every minute now pushes your arrival later.' : `Leave on time and you're there by ${timeText(leaveBy + s.travelMin * 60_000)}.`}`}
+          {s.home ? "You're still at home. " : ''}
+          {`${gym ? gym.label : 'The gym'} is ${travel} min away. ${late ? 'Every minute now pushes your arrival later.' : `Leave on time and you're there by ${timeText(leaveBy + travel * 60_000)}.`}`}
         </T>
       </View>
 
@@ -393,6 +372,76 @@ export function CountdownScreen({
       </View>
 
       <View style={{ gap: 14 }}>
+        <GymChips s={s} onPick={onPickGym} />
+        <Button label="I'm at the gym" onPress={onCheckIn} bg={color.graphite} fg={color.white} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSkip}
+          style={({ pressed }) => ({ minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+        >
+          <T size={16} weight="semibold" tint={color.graphite} style={{ textDecorationLine: 'underline' }}>
+            Skip today (resets your streak to 0)
+          </T>
+        </Pressable>
+      </View>
+    </Screen>
+  );
+}
+
+function GymChips({ s, onPick }: { s: State; onPick: (id: string) => void }) {
+  if (s.gyms.length < 2) return null;
+  const current = activeGym(s)?.id;
+  return (
+    <View style={{ flexDirection: 'row', gap: 6 }}>
+      {s.gyms.slice(0, 3).map((g) => (
+        <Chip key={g.id} label={g.label} on={g.id === current} onPress={() => onPick(g.id)} />
+      ))}
+    </View>
+  );
+}
+
+/* ---------- On your way (after leaving home) ---------- */
+
+export function OnWayScreen({
+  s,
+  now,
+  onCheckIn,
+  onSkip,
+  onPickGym,
+}: {
+  s: State;
+  now: number;
+  onCheckIn: () => void;
+  onSkip: () => void;
+  onPickGym: (id: string) => void;
+}) {
+  useKeepAwake();
+  const left = leftHomeOf(s)!;
+  const gym = activeGym(s);
+  const eta = left + travelOf(s) * 60_000;
+  const over = now >= eta;
+
+  return (
+    <Screen bg={color.amber}>
+      <Rail stage={2} hasHome leftAt={left} fmt={timeText} />
+
+      <View style={{ gap: 6 }}>
+        <T size={22} weight="bold" tint={color.graphite}>
+          {`On your way to ${gym ? gym.label : 'the gym'}`}
+        </T>
+        <Hero fit size={160} tint={color.graphite}>
+          {clockText(over ? now - eta : eta - now)}
+        </Hero>
+        <T size={22} tint={color.graphite}>
+          {over ? 'past when you should have arrived.' : 'until you arrive.'}
+        </T>
+        <T size={17} weight="semibold" tint={color.graphite}>
+          {`Reminders are off. Check-in unlocks within ${s.gymRadius} m.`}
+        </T>
+      </View>
+
+      <View style={{ gap: 14 }}>
+        <GymChips s={s} onPick={onPickGym} />
         <Button label="I'm at the gym" onPress={onCheckIn} bg={color.graphite} fg={color.white} />
         <Pressable
           accessibilityRole="button"
@@ -436,7 +485,9 @@ export function TakeoverScreen({
   return (
     <Screen bg={color.graphite}>
       <T size={16} weight="semibold" tint={color.mist}>
-        {lateMin > 0 ? `This stays until you leave. You're ${lateMin} minutes late.` : 'Before you skip, read this.'}
+        {lateMin > 0
+          ? `${s.home ? "You haven't left home. " : ''}This stays until you leave. You're ${lateMin} minutes late.`
+          : 'Before you skip, read this.'}
       </T>
 
       <View style={{ gap: 24 }}>

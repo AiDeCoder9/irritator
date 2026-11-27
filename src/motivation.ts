@@ -1,3 +1,4 @@
+import { travelOf } from './gym';
 import type { State } from './store';
 
 export const MESSAGE_EVERY_MIN = 5;
@@ -26,5 +27,5 @@ export function levelAt(dismissedAt: number, ts: number) {
 
 export function messageFor(level: number, s: State) {
   const i = level < LADDER.length ? level : LADDER.length - 3 + ((level - LADDER.length) % 3);
-  return LADDER[i]({ day: s.streak + 1, streak: s.streak, reason: s.reason, travelMin: s.travelMin });
+  return LADDER[i]({ day: s.streak + 1, streak: s.streak, reason: s.reason, travelMin: travelOf(s) });
 }

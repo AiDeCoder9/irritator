@@ -11,6 +11,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import {
   cancelAlarm,
+  cancelNags,
   checkIn,
   closeToday,
   dismissAlarm,
@@ -20,13 +21,14 @@ import {
   scheduleAlarm,
   skipToday,
 } from './src/alarm';
-import { checkAtGym } from './src/gym';
+import { checkAtGym, distanceM, HOME_LEFT_M, quietPlace } from './src/gym';
 import { Onboarding } from './src/onboarding';
 import { isMissed, phaseOf } from './src/phase';
 import {
   ClearedScreen,
   CountdownScreen,
   HomeScreen,
+  OnWayScreen,
   RingingScreen,
   SettingsScreen,
   TakeoverScreen,
@@ -92,12 +94,39 @@ export default function App() {
     });
   }, [now, state, run]);
 
+  // While the countdown is on and a home is saved, look for you leaving. Foreground only: the app is open on this screen.
+  const watching = state.home != null && ['countdown', 'late', 'takeover'].includes(phaseOf(state, now));
+  useEffect(() => {
+    if (!watching) return;
+    let alive = true;
+    const home = state.home!;
+    const look = async () => {
+      try {
+        const here = await quietPlace();
+        if (!alive || !here) return;
+        if (distanceM(here, home) > HOME_LEFT_M) {
+          await cancelNags();
+          if (alive) update({ leftHomeAt: Date.now() });
+        }
+      } catch {
+        // A missed reading is fine. The next one is 15 seconds away.
+      }
+    };
+    look();
+    const id = setInterval(look, 15_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [watching, state.home, update]);
+
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: color.concrete }} />;
   }
 
   const phase = phaseOf(state, now);
-  const dark = phase === 'takeover' || phase === 'cleared';
+  const dark =
+    phase === 'takeover' || phase === 'cleared' || (skipping && ['countdown', 'late', 'onway'].includes(phase));
 
   const turnOn = () =>
     run(async () => {
@@ -179,7 +208,37 @@ export default function App() {
           onBack={() => setSkipping(false)}
         />
       ) : (
-        <CountdownScreen s={state} now={now} onCheckIn={verifiedCheckIn} onSkip={() => setSkipping(true)} />
+        <CountdownScreen
+          s={state}
+          now={now}
+          onCheckIn={verifiedCheckIn}
+          onSkip={() => setSkipping(true)}
+          onPickGym={(id) => update({ activeGymId: id })}
+        />
+      );
+      break;
+    case 'onway':
+      screen = skipping ? (
+        <TakeoverScreen
+          s={state}
+          now={now}
+          onCheckIn={verifiedCheckIn}
+          onSkip={() =>
+            run(async () => {
+              setSkipping(false);
+              return skipToday(state);
+            })
+          }
+          onBack={() => setSkipping(false)}
+        />
+      ) : (
+        <OnWayScreen
+          s={state}
+          now={now}
+          onCheckIn={verifiedCheckIn}
+          onSkip={() => setSkipping(true)}
+          onPickGym={(id) => update({ activeGymId: id })}
+        />
       );
       break;
     case 'takeover':

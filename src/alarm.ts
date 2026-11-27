@@ -132,13 +132,13 @@ export async function scheduleAlarm(s: State, whenMs?: number): Promise<Partial<
     at(alarmAt, true),
   );
 
-  return { alarmAt, dismissedAt: null, checkedInAt: null };
+  return { alarmAt, dismissedAt: null, checkedInAt: null, leftHomeAt: null };
 }
 
 export async function cancelAlarm(): Promise<Partial<State>> {
   await notifee.cancelNotification('alarm');
   await cancelNags();
-  return { alarmAt: null, dismissedAt: null, checkedInAt: null };
+  return { alarmAt: null, dismissedAt: null, checkedInAt: null, leftHomeAt: null };
 }
 
 /** Stops the ringing and schedules the escalating nags. The caller saves dismissedAt first, so the countdown always starts. */

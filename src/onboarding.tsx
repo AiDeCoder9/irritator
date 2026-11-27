@@ -2,7 +2,8 @@ import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { currentPlace, findAddress, hasGym } from './gym';
+import { hasGym } from './gym';
+import { Places } from './places';
 import { DAY_NAMES, time12 } from './phase';
 import type { State } from './store';
 import { color, font } from './theme';
@@ -21,7 +22,6 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, onSkip }: Props) {
   const [step, setStep] = useState(1);
-  const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [perm, setPerm] = useState<string[] | null>(null);
@@ -37,19 +37,6 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
       setBusy(false);
     }
   };
-
-  const useHere = () =>
-    attempt(async () => {
-      const p = await currentPlace();
-      onChange({ gymLat: p.lat, gymLng: p.lng, gymLabel: 'your gym (saved from your location)' });
-    });
-
-  const search = () =>
-    attempt(async () => {
-      if (address.trim().length < 3) throw new Error('Type the gym name and area, for example "Cult Fit, Koramangala".');
-      const p = await findAddress(address.trim());
-      onChange({ gymLat: p.lat, gymLng: p.lng, gymLabel: address.trim() });
-    });
 
   const pickTime = () => {
     const d = new Date();
@@ -82,71 +69,22 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             Step {step} of 3
           </T>
           <Hero size={56} tint={color.graphite}>
-            {step === 1 ? 'Where is your gym?' : step === 2 ? 'When do you go?' : 'Allow three things'}
+            {step === 1 ? 'Where do you start and go?' : step === 2 ? 'When do you go?' : 'Allow three things'}
           </Hero>
         </View>
 
         {step === 1 && (
           <>
             <T size={17} tint={color.graphite}>
-              When you tap "I'm at the gym", the app checks you are really there.
+              Add the gyms you go to. When you tap "I'm at the gym", the app checks you are at one of them.
             </T>
-            <Button
-              label={busy ? 'Finding you…' : 'Use my current location'}
-              onPress={useHere}
-              bg={color.graphite}
-              fg={color.white}
-              disabled={busy}
-            />
-            <T size={15} tint={color.iron}>
-              Best option. Do it while you stand inside your gym.
-            </T>
-            <T size={17} weight="semibold" tint={color.graphite}>
-              Or type the address
-            </T>
-            <TextInput
-              value={address}
-              onChangeText={setAddress}
-              placeholder="Gym name, area, city"
-              placeholderTextColor={color.iron}
-              returnKeyType="search"
-              onSubmitEditing={search}
-              style={{
-                height: 52,
-                borderWidth: 2,
-                borderColor: color.graphite,
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                fontFamily: font.body,
-                fontSize: 17,
-                color: color.graphite,
-              }}
-            />
-            <Button label="Find address" onPress={search} outline={color.graphite} fg={color.graphite} disabled={busy} />
-
-            {problem ? (
-              <T size={16} weight="semibold" tint={color.graphite}>
-                {problem}
-              </T>
-            ) : null}
-            {hasGym(s) ? (
-              <T size={17} weight="bold" tint={color.cleared}>
-                Gym saved: {s.gymLabel}
-              </T>
-            ) : null}
-
+            <Places s={s} onChange={onChange} />
             <T size={17} weight="semibold" tint={color.graphite}>
               How close counts as "at the gym"?
             </T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               {[50, 100, 150, 200].map((m) => (
-                <Chip
-                  key={m}
-                  label={`${m} m`}
-                  a11y={`${m} meters`}
-                  on={s.gymRadius === m}
-                  onPress={() => onChange({ gymRadius: m })}
-                />
+                <Chip key={m} label={`${m} m`} a11y={`${m} meters`} on={s.gymRadius === m} onPress={() => onChange({ gymRadius: m })} />
               ))}
             </View>
           </>
@@ -192,20 +130,6 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
                   a11y={`${m} minutes`}
                   on={s.countdownMin === m}
                   onPress={() => onChange({ countdownMin: m })}
-                />
-              ))}
-            </View>
-            <T size={17} weight="semibold" tint={color.graphite}>
-              Minutes to travel to the gym
-            </T>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {[10, 15, 20, 30, 45, 60].map((m) => (
-                <Chip
-                  key={m}
-                  label={String(m)}
-                  a11y={`${m} minutes`}
-                  on={s.travelMin === m}
-                  onPress={() => onChange({ travelMin: m })}
                 />
               ))}
             </View>

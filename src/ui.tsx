@@ -226,7 +226,10 @@ export function Chip({
         transform: [{ scale: pressed ? 0.97 : 1 }],
       })}
     >
-      <Text style={{ fontFamily: font.semibold, fontSize: 16, color: on ? color.white : color.graphite }}>
+      <Text
+        numberOfLines={1}
+        style={{ fontFamily: font.semibold, fontSize: 16, color: on ? color.white : color.graphite, paddingHorizontal: 6 }}
+      >
         {label}
       </Text>
     </Pressable>
@@ -234,7 +237,7 @@ export function Chip({
 }
 
 /** Each new screen fades in with a small rise (220ms, strong ease-out). Reduced motion: fade only. */
-export function FadeIn({ children }: { children: ReactNode }) {
+export function FadeIn({ children, fill = true }: { children: ReactNode; fill?: boolean }) {
   const v = useRef(new Animated.Value(0)).current;
   const [reduce, setReduce] = useState(false);
   useEffect(() => {
@@ -258,12 +261,34 @@ export function FadeIn({ children }: { children: ReactNode }) {
   return (
     <Animated.View
       style={{
-        flex: 1,
+        flex: fill ? 1 : undefined,
         opacity: v,
         transform: [{ translateY: reduce ? 0 : v.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
       }}
     >
       {children}
     </Animated.View>
+  );
+}
+
+/** Awake, left home, at the gym. A segment fills as you reach each stage. Without a saved home there are two. */
+export function Rail({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: boolean; leftAt: number | null; fmt: (ts: number) => string }) {
+  const labels = hasHome ? ['Awake', leftAt != null ? `Left home ${fmt(leftAt)}` : 'Leave home', 'At the gym'] : ['Awake', 'At the gym'];
+  const filled = hasHome ? (stage === 2 ? 2 : 1) : 1;
+  return (
+    <View accessible accessibilityLabel={`Progress: ${labels.slice(0, filled).join(', then ')}`} style={{ gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 5 }}>
+        {labels.map((l, i) => (
+          <View key={l} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: i < filled ? color.graphite : '#D99A24' }} />
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 5 }}>
+        {labels.map((l) => (
+          <Text key={l} numberOfLines={1} style={{ flex: 1, fontFamily: font.semibold, fontSize: 12, color: color.graphite }}>
+            {l}
+          </Text>
+        ))}
+      </View>
+    </View>
   );
 }

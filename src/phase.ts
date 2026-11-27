@@ -1,7 +1,7 @@
 import { TAKEOVER_AFTER_MIN } from './theme';
 import type { State } from './store';
 
-export type Phase = 'idle' | 'waiting' | 'ringing' | 'countdown' | 'late' | 'takeover' | 'cleared';
+export type Phase = 'idle' | 'waiting' | 'ringing' | 'countdown' | 'late' | 'takeover' | 'onway' | 'cleared';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -15,6 +15,12 @@ export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'
 function validDismissedAt(s: State): number | null {
   if (s.alarmAt == null || s.dismissedAt == null) return null;
   return s.dismissedAt >= s.alarmAt ? s.dismissedAt : null;
+}
+
+/** Only a "left home" seen after this alarm's dismissal counts. */
+export function leftHomeOf(s: State): number | null {
+  const d = validDismissedAt(s);
+  return d != null && s.leftHomeAt != null && s.leftHomeAt >= d ? s.leftHomeAt : null;
 }
 
 export function leaveByOf(s: State): number | null {
@@ -35,6 +41,7 @@ export function phaseOf(s: State, now: number): Phase {
   if (now < s.alarmAt) return 'waiting';
   const leaveBy = leaveByOf(s);
   if (leaveBy == null) return 'ringing';
+  if (leftHomeOf(s) != null) return 'onway';
   if (now < leaveBy) return 'countdown';
   if (now < leaveBy + TAKEOVER_AFTER_MIN * MIN) return 'late';
   return 'takeover';
@@ -44,7 +51,8 @@ export function phaseOf(s: State, now: number): Phase {
 export function isMissed(s: State, now: number): boolean {
   if (s.alarmAt == null || now < s.alarmAt) return false;
   const leaveBy = leaveByOf(s);
-  const base = leaveBy ?? s.alarmAt;
+  const left = leftHomeOf(s);
+  const base = left ?? leaveBy ?? s.alarmAt;
   return now > base + MISSED_AFTER_MIN * MIN;
 }
 
