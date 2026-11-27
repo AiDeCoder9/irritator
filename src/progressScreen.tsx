@@ -11,8 +11,9 @@ const DAY = 86_400_000;
 function Dot({ c }: { c: Cell }) {
   const done = c.state === 'done';
   const skipped = c.state === 'skipped';
+  const excused = c.state === 'excused';
   const today = c.state === 'today';
-  const name = { done: 'went', skipped: 'skipped', rest: 'rest day', empty: 'no record', today: 'today' }[c.state];
+  const name = { done: 'went', skipped: 'skipped', excused: 'excused', rest: 'rest day', empty: 'no record', today: 'today' }[c.state];
   return (
     <View accessible accessibilityLabel={`${c.date}, ${name}`} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
       <View
@@ -24,10 +25,11 @@ function Dot({ c }: { c: Cell }) {
           justifyContent: 'center',
           backgroundColor: done ? color.yellow : 'transparent',
           borderWidth: done ? 0 : 1.5,
-          borderColor: skipped ? color.text2 : today ? color.yellow : color.line,
+          borderColor: skipped || excused ? color.text2 : today ? color.yellow : color.line,
         }}
       >
         {done ? <Text style={{ fontFamily: font.bold, fontSize: 15, color: color.ink }}>✓</Text> : null}
+        {excused ? <Text style={{ fontFamily: font.bold, fontSize: 15, color: color.text2 }}>–</Text> : null}
         {skipped ? <Text style={{ fontFamily: font.bold, fontSize: 15, color: color.text2 }}>×</Text> : null}
       </View>
       <Text style={{ fontFamily: font.semibold, fontSize: 12, color: today ? color.yellow : color.text2 }}>{c.label}</Text>
@@ -99,10 +101,11 @@ export function ProgressScreen({ s, water, now }: { s: State; water: Water; now:
         </View>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Stat value={`${waterDays} of 7`} label="Water goal" sub="Days you hit your goal" />
+          <Stat value={String(st.runs)} label="Runs" sub="Logged in the last 28 days" />
         </View>
 
         <T size={13} tint={color.text2}>
-          History starts the day this screen was added. Earlier days are not counted. A missed day counts as a skip.
+          History starts the day this screen was added. Earlier days are not counted. A missed day counts as a skip. Excused days don't count for or against you.
         </T>
       </ScrollView>
     </View>

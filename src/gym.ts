@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 
+import { kindOf } from './kinds';
 import type { Gym, State } from './store';
 
 export type Point = { lat: number; lng: number };
@@ -53,7 +54,8 @@ export async function quietPlace(): Promise<Point | null> {
 
 /** Used by "I'm at the gym". Works at any saved gym. Returns a message when you are too far from all of them. */
 export async function checkAtGym(s: State): Promise<{ ok: true; gymId?: string } | { ok: false; message: string }> {
-  if (!s.verifyLocation || !hasGym(s)) return { ok: true };
+  // Run days have no place to check in at.
+  if (kindOf(s) === 'run' || !s.verifyLocation || !hasGym(s)) return { ok: true };
   const here = await currentPlace();
   // Phone GPS is off by a few meters indoors; forgive up to 50 m of that.
   const slack = Math.min(here.accuracy, 50);

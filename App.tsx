@@ -15,6 +15,7 @@ import {
   checkIn,
   closeToday,
   dismissAlarm,
+  excuseToday,
   ensureChannels,
   ensurePermissions,
   openBatterySettings,
@@ -23,13 +24,16 @@ import {
 } from './src/alarm';
 import { checkAtGym, distanceM, HOME_LEFT_M, quietPlace } from './src/gym';
 import { Onboarding } from './src/onboarding';
+import { kindOf } from './src/kinds';
 import { isMissed, phaseOf } from './src/phase';
 import {
   ClearedScreen,
   CountdownScreen,
+  ExcuseScreen,
   OnWayScreen,
   PlacesScreen,
   RingingScreen,
+  RunDoneScreen,
   ScheduleScreen,
   SettingsScreen,
   TakeoverScreen,
@@ -65,6 +69,10 @@ export default function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [setup, setSetup] = useState(false);
   const [skipping, setSkipping] = useState(false);
+  const [excusing, setExcusing] = useState(false);
+  const [runDone, setRunDone] = useState(false);
+  // Remember what today was, so the cleared screen can say "run" after the next alarm is set.
+  const [wasRun, setWasRun] = useState(false);
   const checking = useRef(false);
   const now = useNow(1000);
   const water = useWater();
@@ -137,7 +145,7 @@ export default function App() {
 
   const phase = phaseOf(state, now);
   // Yellow screens need dark status bar icons. Everything else is black.
-  const yellowScreen = !skipping && ['countdown', 'late', 'onway'].includes(phase);
+  const yellowScreen = !skipping && !excusing && !runDone && ['countdown', 'late', 'onway'].includes(phase);
   const idle = phase === 'idle' || phase === 'waiting';
   const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings' || route === 'water' || route === 'progress');
   const go = (r: Route, back: Route) => {
@@ -179,7 +187,12 @@ export default function App() {
   };
 
   // Check-in only counts when you are at the gym (unless the check is switched off in Settings).
-  const verifiedCheckIn = async () => {
+  const verifiedCheckIn = async (note?: string) => {
+    // Run days ask for one line about the run first.
+    if (kindOf(state) === 'run' && note == null) {
+      setRunDone(true);
+      return;
+    }
     if (checking.current) return;
     checking.current = true;
     try {
@@ -188,14 +201,23 @@ export default function App() {
         setNotice(r.message);
         return;
       }
-      await run(() => checkIn(state));
+      setWasRun(kindOf(state) === 'run');
+      await run(() => checkIn(state, note));
       setSkipping(false);
+      setRunDone(false);
     } catch (e) {
       setError(`Could not check your location: ${message(e)}`);
     } finally {
       checking.current = false;
     }
   };
+
+  const excuse = (why: string) =>
+    run(async () => {
+      setExcusing(false);
+      setSkipping(false);
+      return excuseToday(state, why);
+    });
 
   const finishSetup = () =>
     run(async () => {
@@ -215,7 +237,8 @@ export default function App() {
         <TakeoverScreen
           s={state}
           now={now}
-          onCheckIn={verifiedCheckIn}
+          onCheckIn={() => verifiedCheckIn()}
+          onExcuse={() => setExcusing(true)}
           onSkip={() =>
             run(async () => {
               setSkipping(false);
@@ -228,8 +251,9 @@ export default function App() {
         <CountdownScreen
           s={state}
           now={now}
-          onCheckIn={verifiedCheckIn}
+          onCheckIn={() => verifiedCheckIn()}
           onSkip={() => setSkipping(true)}
+          onExcuse={() => setExcusing(true)}
           onPickGym={(id) => update({ activeGymId: id })}
         />
       );
@@ -239,7 +263,8 @@ export default function App() {
         <TakeoverScreen
           s={state}
           now={now}
-          onCheckIn={verifiedCheckIn}
+          onCheckIn={() => verifiedCheckIn()}
+          onExcuse={() => setExcusing(true)}
           onSkip={() =>
             run(async () => {
               setSkipping(false);
@@ -252,8 +277,9 @@ export default function App() {
         <OnWayScreen
           s={state}
           now={now}
-          onCheckIn={verifiedCheckIn}
+          onCheckIn={() => verifiedCheckIn()}
           onSkip={() => setSkipping(true)}
+          onExcuse={() => setExcusing(true)}
           onPickGym={(id) => update({ activeGymId: id })}
         />
       );
@@ -263,13 +289,14 @@ export default function App() {
         <TakeoverScreen
           s={state}
           now={now}
-          onCheckIn={verifiedCheckIn}
+          onCheckIn={() => verifiedCheckIn()}
+          onExcuse={() => setExcusing(true)}
           onSkip={() => run(() => skipToday(state))}
         />
       );
       break;
     case 'cleared':
-      screen = <ClearedScreen s={state} onClose={() => run(() => closeToday())} />;
+      screen = <ClearedScreen s={state} wasRun={wasRun} onClose={() => run(() => closeToday())} />;
       break;
     default:
       screen = !state.onboarded || setup ? (
@@ -316,11 +343,15 @@ export default function App() {
       );
   }
 
+  const working = ['countdown', 'late', 'onway', 'takeover'].includes(phase);
+  if (working && excusing) screen = <ExcuseScreen onExcuse={excuse} onBack={() => setExcusing(false)} />;
+  else if (working && runDone) screen = <RunDoneScreen onSave={(note) => verifiedCheckIn(note)} onBack={() => setRunDone(false)} />;
+
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
       <StatusBar style={yellowScreen ? 'dark' : 'light'} />
       <View style={{ flex: 1 }}>
-        <FadeIn key={`${phase}-${skipping}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
+        <FadeIn key={`${phase}-${skipping}-${excusing}-${runDone}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
       </View>
       {showTabs ? <TabBar active={route as 'today' | 'water' | 'progress' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
       {error || notice ? (

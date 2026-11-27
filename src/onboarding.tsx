@@ -7,7 +7,8 @@ import { DAY_NAMES, time12 } from './phase';
 import { useTimePicker } from './timePicker';
 import type { State } from './store';
 import { color, font } from './theme';
-import { Button, Card, Chip, Hero, T, topInset } from './ui';
+import { Button, Card, Chip, Hero, LinkButton, T, topInset } from './ui';
+import { WeekPlan } from './weekPlan';
 
 type Props = {
   s: State;
@@ -22,6 +23,7 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, onSkip }: Props) {
   const [step, setStep] = useState(1);
+  const onlyRuns = s.days.every((on, d) => !on || s.kinds[d] === 'run');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const tp = useTimePicker(s, onChange);
@@ -67,6 +69,13 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
               Add the gyms you go to. When you tap "I'm at the gym", the app checks you are at one of them.
             </T>
             <Places s={s} onChange={onChange} />
+            <LinkButton
+              label="I only run, no gym"
+              onPress={() => {
+                onChange({ kinds: s.kinds.map(() => 'run') as State['kinds'] });
+                setStep(2);
+              }}
+            />
             <T size={17} weight="semibold" tint={color.text}>
               How close counts as "at the gym"?
             </T>
@@ -96,19 +105,12 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
               </Card>
             </Pressable>
             <T size={17} weight="semibold" tint={color.text}>
-              Gym days
+              Your week
             </T>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
-                <Chip
-                  key={d}
-                  label={DAY_NAMES[d].slice(0, 2)}
-                  a11y={DAY_NAMES[d]}
-                  on={s.days[d]}
-                  onPress={() => toggleDay(d)}
-                />
-              ))}
-            </View>
+            <WeekPlan s={s} onChange={onChange} />
+            <T size={15} tint={color.text2}>
+              Tap a day to switch between gym, run and off.
+            </T>
             <T size={17} weight="semibold" tint={color.text}>
               Minutes to get out the door
             </T>
@@ -166,7 +168,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             <Button
               label="Next"
               onPress={() => setStep(step + 1)}
-              disabled={step === 1 && !hasGym(s)}
+              disabled={step === 1 && !hasGym(s) && !onlyRuns}
             />
           ) : (
             <Button label="Finish and turn alarm on" onPress={onFinish} />

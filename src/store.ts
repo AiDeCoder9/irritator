@@ -1,5 +1,6 @@
 import Storage from 'expo-sqlite/kv-store';
 
+import { DEFAULT_KINDS, type Kind } from './kinds';
 import type { DayEntry } from './progressCore';
 
 export type Gym = { id: string; label: string; lat: number; lng: number; travelMin: number };
@@ -10,6 +11,8 @@ export type State = {
   alarmMinute: number;
   /** Which days the alarm rings, indexed like Date.getDay(): 0 = Sunday. */
   days: boolean[];
+  /** What each weekday is when its alarm is on: gym or run. Indexed like days. */
+  kinds: Kind[];
   /** Minutes you get after dismissing the alarm: 5 to 30, steps of 5. */
   countdownMin: number;
   reason: string;
@@ -41,6 +44,7 @@ export const defaults: State = {
   alarmHour: 5,
   alarmMinute: 0,
   days: [true, true, true, true, true, true, true],
+  kinds: DEFAULT_KINDS,
   countdownMin: 20,
   reason: "I'm not going back to who I was in October.",
   streak: 4,

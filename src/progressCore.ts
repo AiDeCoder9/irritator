@@ -1,7 +1,7 @@
 // Pure progress logic: day history, streak numbers and the last two weeks. No storage, so it can be tested alone.
 
-export type Result = 'done' | 'skipped';
-export type DayEntry = { date: string; result: Result; at: number };
+export type Result = 'done' | 'skipped' | 'excused';
+export type DayEntry = { date: string; result: Result; at: number; kind?: 'gym' | 'run'; note?: string };
 
 const DAY = 86_400_000;
 
@@ -17,13 +17,19 @@ const at = (date: string): Date => {
 };
 
 /** One entry per day. A later result for the same day replaces the earlier one. Keeps 120 days. */
-export function addEntry(history: DayEntry[], dayTs: number, result: Result, now = Date.now()): DayEntry[] {
+export function addEntry(
+  history: DayEntry[],
+  dayTs: number,
+  result: Result,
+  now = Date.now(),
+  extra: { kind?: 'gym' | 'run'; note?: string } = {},
+): DayEntry[] {
   const date = ymd(dayTs);
   const kept = history.filter((e) => e.date !== date && now - at(e.date).getTime() < 120 * DAY);
-  return [...kept, { date, result, at: now }].sort((a, b) => (a.date < b.date ? -1 : 1));
+  return [...kept, { date, result, at: now, ...extra }].sort((a, b) => (a.date < b.date ? -1 : 1));
 }
 
-export type Cell = { date: string; state: 'done' | 'skipped' | 'rest' | 'empty' | 'today'; label: string };
+export type Cell = { date: string; state: 'done' | 'skipped' | 'excused' | 'rest' | 'empty' | 'today'; label: string };
 
 /** The last `n` days ending today, oldest first. `days` marks which weekdays have a gym alarm (0 = Sunday). */
 export function lastDays(history: DayEntry[], days: boolean[], now: number, n = 14): Cell[] {
@@ -48,6 +54,8 @@ export type Stats = {
   /** Share of scheduled days you went, over the last 28 days since tracking began. Null until there is a day to count. */
   consistency: number | null;
   tracked: number;
+  /** Runs logged in the last 28 days. */
+  runs: number;
 };
 
 export function statsOf(history: DayEntry[], days: boolean[], streak: number, bestStreak: number, now: number): Stats {
@@ -67,6 +75,7 @@ export function statsOf(history: DayEntry[], days: boolean[], streak: number, be
       const date = ymd(ts);
       if (date < first) break;
       const e = history.find((x) => x.date === date);
+      if (e?.result === 'excused') continue;
       if (e) {
         scheduled++;
         if (e.result === 'done') done++;
@@ -80,5 +89,6 @@ export function statsOf(history: DayEntry[], days: boolean[], streak: number, be
     weekScheduled: Math.max(weekScheduled, weekDone),
     consistency: scheduled ? Math.round((done / scheduled) * 100) : null,
     tracked: history.length,
+    runs: history.filter((e) => e.kind === 'run' && e.result === 'done' && e.date >= ymd(now - 27 * DAY)).length,
   };
 }

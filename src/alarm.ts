@@ -12,6 +12,7 @@ import notifee, {
 
 import { levelAt, messageFor, MESSAGE_EVERY_MIN } from './motivation';
 import { nextOccurrence } from './phase';
+import { kindOf } from './kinds';
 import { addEntry } from './progressCore';
 import type { State } from './store';
 import { TAKEOVER_AFTER_MIN } from './theme';
@@ -184,7 +185,7 @@ async function scheduleNags(s: State & { dismissedAt: number }) {
   plan.push({
     id: 'nag-takeover',
     ts: takeoverAt,
-    title: `Day ${day} starts at the gym.`,
+    title: kindOf(s) === 'run' ? `Day ${day} starts with a run.` : `Day ${day} starts at the gym.`,
     body: messageFor(levelAt(s.dismissedAt, takeoverAt), s),
     channel: CH.takeover,
     loud: true,
@@ -221,7 +222,7 @@ export async function cancelNags() {
 }
 
 /** Test stand-in until gym check-in (location plus steps) exists. Schedules the next alarm straight away. */
-export async function checkIn(s: State): Promise<Partial<State>> {
+export async function checkIn(s: State, note?: string): Promise<Partial<State>> {
   await cancelNags();
   const next = await scheduleAlarm(s);
   const streak = s.streak + 1;
@@ -230,7 +231,7 @@ export async function checkIn(s: State): Promise<Partial<State>> {
     checkedInAt: Date.now(),
     streak,
     bestStreak: Math.max(s.bestStreak, streak),
-    history: addEntry(s.history, s.alarmAt ?? Date.now(), 'done'),
+    history: addEntry(s.history, s.alarmAt ?? Date.now(), 'done', Date.now(), { kind: kindOf(s), ...(note ? { note } : {}) }),
   };
 }
 
@@ -238,7 +239,14 @@ export async function checkIn(s: State): Promise<Partial<State>> {
 export async function skipToday(s: State): Promise<Partial<State>> {
   await cancelNags();
   const next = await scheduleAlarm(s);
-  return { ...next, streak: 0, history: addEntry(s.history, s.alarmAt ?? Date.now(), 'skipped') };
+  return { ...next, streak: 0, history: addEntry(s.history, s.alarmAt ?? Date.now(), 'skipped', Date.now(), { kind: kindOf(s) }) };
+}
+
+/** Injured, sick or travelling. Keeps the streak, is logged, and sets up the next alarm. */
+export async function excuseToday(s: State, why: string): Promise<Partial<State>> {
+  await cancelNags();
+  const next = await scheduleAlarm(s);
+  return { ...next, history: addEntry(s.history, s.alarmAt ?? Date.now(), 'excused', Date.now(), { kind: kindOf(s), note: why }) };
 }
 
 /** Hides the cleared screen. The next alarm is already scheduled. */

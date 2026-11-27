@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { activeGym, travelOf } from './gym';
+import { kindOf } from './kinds';
 import { levelAt, messageFor } from './motivation';
 import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeText } from './phase';
 import { Places } from './places';
+import { WeekPlan } from './weekPlan';
 import { useTimePicker } from './timePicker';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
@@ -53,6 +55,7 @@ export function TodayScreen({
   const on = s.alarmAt != null;
   const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
   const gym = activeGym(s);
+  const nextRun = s.alarmAt != null && kindOf(s) === 'run';
   const fg = on ? color.ink : color.text;
   const soft = on ? color.inkSoft : color.text2;
 
@@ -73,7 +76,7 @@ export function TodayScreen({
         <Card bg={on ? color.yellow : color.surface} pad={24} radius={32} style={{ gap: 10 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <T size={14} weight="bold" tint={soft}>
-              {on ? `Next alarm, ${dayName(s.alarmAt!)}` : 'Alarm is off'}
+              {on ? `Next alarm, ${dayName(s.alarmAt!)}${nextRun ? ', run' : ''}` : 'Alarm is off'}
             </T>
             <Toggle on={on} onPress={onToggle} label="Alarm" tone="yellow" />
           </View>
@@ -120,6 +123,19 @@ export function TodayScreen({
           </Pressable>
         </Card>
 
+        {nextRun ? (
+          <Card pad={18} style={{ gap: 4 }}>
+            <T size={14} weight="semibold" tint={color.text2}>
+              Run day
+            </T>
+            <T size={20} weight="bold">
+              No gym needed
+            </T>
+            <T size={14} tint={color.text2}>
+              After your run, tap that you ran. Your gyms are under Settings.
+            </T>
+          </Card>
+        ) : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Gyms"
@@ -138,6 +154,7 @@ export function TodayScreen({
             </T>
           </Card>
         </Pressable>
+        )}
 
         {notes.map((n) => (
           <T key={n} size={15} weight="semibold" tint={color.yellow}>
@@ -158,12 +175,6 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
   const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
   const tp = useTimePicker(s, onChange);
 
-  const toggleDay = (d: number) => {
-    if (s.days[d] && s.days.filter(Boolean).length === 1) return;
-    const next = [...s.days];
-    next[d] = !next[d];
-    onChange({ days: next });
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -199,13 +210,12 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
 
         <View style={{ gap: 10 }}>
           <T size={14} weight="semibold" tint={color.text2}>
-            Repeat
+            Your week
           </T>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {DAY_ORDER.map((d) => (
-              <Chip key={d} label={DAY_LETTERS[d]} a11y={DAY_NAMES[d]} on={s.days[d]} onPress={() => toggleDay(d)} />
-            ))}
-          </View>
+          <WeekPlan s={s} onChange={onChange} />
+          <T size={14} tint={color.text2}>
+            Tap a day to switch between gym, run and off.
+          </T>
         </View>
 
         <View style={{ gap: 10 }}>
@@ -379,21 +389,30 @@ function GymChips({ s, onPick, tone }: { s: State; onPick: (id: string) => void;
   );
 }
 
-function SkipLink({ onPress }: { onPress: () => void }) {
-  return <LinkButton label="Skip today (resets your streak to 0)" onPress={onPress} tint={color.ink} />;
+function SkipLink({ onPress, onExcuse }: { onPress: () => void; onExcuse: () => void }) {
+  return (
+    <View>
+      <LinkButton label="Can't today? Injured, sick or travelling" onPress={onExcuse} tint={color.ink} />
+      <LinkButton label="Skip today (resets your streak to 0)" onPress={onPress} tint={color.ink} />
+    </View>
+  );
 }
+
+export const checkInLabel = (s: State) => (kindOf(s) === 'run' ? 'I ran' : "I'm at the gym");
 
 export function CountdownScreen({
   s,
   now,
   onCheckIn,
   onSkip,
+  onExcuse,
   onPickGym,
 }: {
   s: State;
   now: number;
   onCheckIn: () => void;
   onSkip: () => void;
+  onExcuse: () => void;
   onPickGym: (id: string) => void;
 }) {
   useKeepAwake();
@@ -402,6 +421,7 @@ export function CountdownScreen({
   const gym = activeGym(s);
   const late = now >= leaveBy;
   const lateMin = Math.floor((now - leaveBy) / 60_000);
+  const run = kindOf(s) === 'run';
 
   return (
     <View style={{ flex: 1, backgroundColor: color.yellow, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
@@ -418,9 +438,13 @@ export function CountdownScreen({
           {late ? 'late.' : 'until you should be out the door.'}
         </T>
         <T size={15} weight="semibold" tint={color.inkSoft}>
-          {`${s.home ? "You're still at home. " : ''}${gym ? gym.label : 'The gym'} is ${travel} min away. ${
-            late ? `The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.` : `Leave on time and you're there by ${timeText(leaveBy + travel * 60_000)}.`
-          }`}
+          {run
+            ? `${s.home ? "You're still at home. " : ''}${
+                late ? `The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.` : 'Shoes on, door open. That is the whole job right now.'
+              }`
+            : `${s.home ? "You're still at home. " : ''}${gym ? gym.label : 'The gym'} is ${travel} min away. ${
+                late ? `The full screen comes at ${timeText(leaveBy + TAKEOVER_AFTER_MIN * 60_000)}.` : `Leave on time and you're there by ${timeText(leaveBy + travel * 60_000)}.`
+              }`}
         </T>
       </View>
 
@@ -432,8 +456,8 @@ export function CountdownScreen({
 
       <View style={{ flex: 1, minHeight: 4 }} />
       <GymChips s={s} onPick={onPickGym} tone="yellow" />
-      <Button label="I'm at the gym" onPress={onCheckIn} bg={color.ink} fg={color.yellow} height={64} />
-      <SkipLink onPress={onSkip} />
+      <Button label={checkInLabel(s)} onPress={onCheckIn} bg={color.ink} fg={color.yellow} height={64} />
+      <SkipLink onPress={onSkip} onExcuse={onExcuse} />
     </View>
   );
 }
@@ -445,12 +469,14 @@ export function OnWayScreen({
   now,
   onCheckIn,
   onSkip,
+  onExcuse,
   onPickGym,
 }: {
   s: State;
   now: number;
   onCheckIn: () => void;
   onSkip: () => void;
+  onExcuse: () => void;
   onPickGym: (id: string) => void;
 }) {
   useKeepAwake();
@@ -458,6 +484,7 @@ export function OnWayScreen({
   const gym = activeGym(s);
   const eta = left + travelOf(s) * 60_000;
   const over = now >= eta;
+  const run = kindOf(s) === 'run';
 
   return (
     <View style={{ flex: 1, backgroundColor: color.yellow, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
@@ -465,23 +492,23 @@ export function OnWayScreen({
 
       <View style={{ gap: 6, marginTop: 4 }}>
         <T size={20} weight="bold" tint={color.ink}>
-          {`On your way to ${gym ? gym.label : 'the gym'}`}
+          {run ? 'Out on your run' : `On your way to ${gym ? gym.label : 'the gym'}`}
         </T>
         <Hero fit size={112} tint={color.ink}>
-          {clockText(over ? now - eta : eta - now)}
+          {run ? clockText(now - left) : clockText(over ? now - eta : eta - now)}
         </Hero>
         <T size={18} tint={color.ink}>
-          {over ? 'past when you should have arrived.' : 'until you arrive.'}
+          {run ? 'since you left home.' : over ? 'past when you should have arrived.' : 'until you arrive.'}
         </T>
         <T size={15} weight="semibold" tint={color.inkSoft}>
-          {`Reminders are off. Check-in unlocks within ${s.gymRadius} m.`}
+          {run ? 'Reminders are off. Tap below when you finish.' : `Reminders are off. Check-in unlocks within ${s.gymRadius} m.`}
         </T>
       </View>
 
       <View style={{ flex: 1 }} />
       <GymChips s={s} onPick={onPickGym} tone="yellow" />
-      <Button label="I'm at the gym" onPress={onCheckIn} bg={color.ink} fg={color.yellow} height={64} />
-      <SkipLink onPress={onSkip} />
+      <Button label={checkInLabel(s)} onPress={onCheckIn} bg={color.ink} fg={color.yellow} height={64} />
+      <SkipLink onPress={onSkip} onExcuse={onExcuse} />
     </View>
   );
 }
@@ -493,12 +520,14 @@ export function TakeoverScreen({
   now,
   onCheckIn,
   onSkip,
+  onExcuse,
   onBack,
 }: {
   s: State;
   now: number;
   onCheckIn: () => void;
   onSkip: () => void;
+  onExcuse: () => void;
   /** Set when you opened this screen yourself to skip. */
   onBack?: () => void;
 }) {
@@ -526,7 +555,7 @@ export function TakeoverScreen({
 
       <View style={{ gap: 20, marginTop: 6 }}>
         <Hero size={56} tint={color.yellow}>
-          {`Day ${s.streak + 1} starts at the gym.`}
+          {kindOf(s) === 'run' ? `Day ${s.streak + 1} starts with a run.` : `Day ${s.streak + 1} starts at the gym.`}
         </Hero>
         <View style={{ gap: 6 }}>
           <T size={15} tint={color.text2}>
@@ -539,8 +568,9 @@ export function TakeoverScreen({
       </View>
 
       <View style={{ flex: 1, minHeight: 8 }} />
-      <Button label="I'm at the gym" onPress={onCheckIn} />
+      <Button label={checkInLabel(s)} onPress={onCheckIn} />
       {onBack ? <Button label="Back to countdown" onPress={onBack} bg={color.surface2} fg={color.text} height={54} /> : null}
+      <LinkButton label="Injured, sick or travelling? Excuse today" onPress={onExcuse} tint={color.yellow} />
       <T size={15} weight="semibold">
         Skipping today? Say why.
       </T>
@@ -565,8 +595,9 @@ export function TakeoverScreen({
 
 /* ---------- Cleared ---------- */
 
-export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void }) {
+export function ClearedScreen({ s, onClose, wasRun }: { s: State; onClose: () => void; wasRun: boolean }) {
   const gym = activeGym(s);
+  const run = wasRun;
   return (
     <View style={{ flex: 1, backgroundColor: color.black, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 28, gap: 14 }}>
       <View
@@ -580,8 +611,7 @@ export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void })
         }}
       >
         <T size={14} weight="bold" tint={color.ok}>
-          ✓ Checked in at {timeText(s.checkedInAt!)}
-          {gym ? `, ${gym.label}` : ''}
+          {run ? `✓ Run logged at ${timeText(s.checkedInAt!)}` : `✓ Checked in at ${timeText(s.checkedInAt!)}${gym ? `, ${gym.label}` : ''}`}
         </T>
       </View>
 
@@ -600,6 +630,59 @@ export function ClearedScreen({ s, onClose }: { s: State; onClose: () => void })
         {s.alarmAt != null ? `Next alarm: ${dayName(s.alarmAt)} at ${timeText(s.alarmAt)}.` : 'No alarm is set.'}
       </T>
       <Button label="Done" onPress={onClose} />
+    </View>
+  );
+}
+
+/* ---------- Excuse today ---------- */
+
+const EXCUSES = ['Injured', 'Sick', 'Travelling'];
+
+export function ExcuseScreen({ onExcuse, onBack }: { onExcuse: (why: string) => void; onBack: () => void }) {
+  const [why, setWhy] = useState<string | null>(null);
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 16 }}>
+      <Back label="Back" onPress={onBack} />
+      <Hero size={40} tint={color.text}>
+        Excuse today
+      </Hero>
+      <T size={17} tint={color.text2}>
+        Your streak stays. Today is logged as excused, and the next alarm is set. Rest, and come back.
+      </T>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {EXCUSES.map((e) => (
+          <Chip key={e} label={e} on={why === e} onPress={() => setWhy(e)} />
+        ))}
+      </View>
+      <View style={{ flex: 1 }} />
+      <Button label="Excuse today" onPress={() => why && onExcuse(why)} disabled={why == null} />
+    </View>
+  );
+}
+
+/* ---------- Run done ---------- */
+
+export function RunDoneScreen({ onSave, onBack }: { onSave: (note: string) => void; onBack: () => void }) {
+  const [note, setNote] = useState('');
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 16 }}>
+      <Back label="Back" onPress={onBack} />
+      <Hero size={40} tint={color.text}>
+        How was the run?
+      </Hero>
+      <T size={17} tint={color.text2}>
+        One line is enough. Distance, time, how it felt.
+      </T>
+      <TextInput
+        value={note}
+        onChangeText={setNote}
+        placeholder="5 km in 32 minutes, felt good"
+        placeholderTextColor={color.text2}
+        autoFocus
+        style={{ height: 56, borderRadius: 16, backgroundColor: color.surface, paddingHorizontal: 18, fontFamily: font.body, fontSize: 17, color: color.text }}
+      />
+      <View style={{ flex: 1 }} />
+      <Button label="Log my run" onPress={() => onSave(note.trim())} disabled={note.trim().length < 3} />
     </View>
   );
 }
