@@ -12,13 +12,14 @@ export type Fast = {
   /** Notify when the window opens and closes. */
   notify: boolean;
 };
-export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast };
+export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string };
 
 export const EAT_HOURS = [8, 10, 12];
 
 export const foodDefaults: Food = {
   meals: [],
   saved: [],
+  fdcKey: '',
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
 };
 
@@ -135,4 +136,40 @@ export function hm(ms: number) {
   const h = Math.floor(total / 60);
   const m = total % 60;
   return h === 0 ? `${m}m` : `${h}h ${String(m).padStart(2, '0')}m`;
+}
+
+/** One search result, values per 100 g. */
+export type Hit = { name: string; kcal100: number; protein100: number | null };
+
+type UsdaNutrient = { nutrientNumber?: string; nutrientId?: number; unitName?: string; value?: number };
+type UsdaFood = { description?: string; foodNutrients?: UsdaNutrient[] };
+
+/** Reads the USDA FoodData Central search answer. Skips foods that have no calorie value. */
+export function parseUsda(json: unknown): Hit[] {
+  const foods = (json as { foods?: UsdaFood[] } | null)?.foods;
+  if (!Array.isArray(foods)) return [];
+  const out: Hit[] = [];
+  for (const f of foods) {
+    const ns = f.foodNutrients ?? [];
+    const num = (n: UsdaNutrient) => n.nutrientNumber ?? String(n.nutrientId ?? '');
+    // 208 is Energy. Some newer foods only carry the Atwater energy values (957, 958).
+    const energy = ['208', '957', '958']
+      .map((code) => ns.find((n) => num(n) === code && (n.unitName ?? 'KCAL').toUpperCase() === 'KCAL' && typeof n.value === 'number'))
+      .find(Boolean);
+    const prot = ns.find((n) => num(n) === '203' && typeof n.value === 'number');
+    if (!f.description || !energy) continue;
+    out.push({
+      name: tidy(f.description),
+      kcal100: Math.round(energy.value as number),
+      protein100: prot ? Math.round((prot.value as number) * 10) / 10 : null,
+    });
+  }
+  return out;
+}
+
+/** "CHICKEN, BROILER, BREAST" becomes "Chicken, broiler, breast". */
+export function tidy(s: string): string {
+  const t = s.trim();
+  if (t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase();
+  return t;
 }

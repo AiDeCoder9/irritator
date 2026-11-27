@@ -9,9 +9,12 @@ import {
   loadFood,
   Meal,
   mealProblem,
+  Hit,
   parseNum,
   rescheduleFast,
   Saved,
+  scaleFor,
+  searchFoods,
   todaysMeals,
   totalsOf,
   updateFood,
@@ -21,6 +24,7 @@ import { useTimePicker } from './timePicker';
 import { color, font } from './theme';
 import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, T, Toggle, topInset } from './ui';
 
+const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const page = { paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 16 } as const;
 
 /** Food lives in storage like water does. Changes save at once and the fasting notifications follow. */
@@ -204,12 +208,43 @@ const input = {
 } as const;
 
 export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial: Meal | null; onDone: () => void }) {
-  const { f, saveMeal, removeSaved } = api;
+  const { f, change, saveMeal, removeSaved } = api;
   const [name, setName] = useState(initial?.name ?? '');
   const [kcal, setKcal] = useState(initial ? String(initial.kcal) : '');
   const [protein, setProtein] = useState(initial?.protein != null ? String(initial.protein) : '');
   const [keep, setKeep] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+
+  // Food search (USDA FoodData Central)
+  const [query, setQuery] = useState('');
+  const [hits, setHits] = useState<Hit[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState<Hit | null>(null);
+  const [grams, setGrams] = useState('100');
+
+  const search = async () => {
+    if (query.trim().length < 2) return setProblem('Type a food to search for, like "rice" or "pizza".');
+    setBusy(true);
+    setProblem(null);
+    setPicked(null);
+    try {
+      setHits(await searchFoods(query.trim(), f.fdcKey));
+    } catch (e) {
+      setHits(null);
+      setProblem(msg(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyPick = (h: Hit, g: string) => {
+    const amount = parseNum(g);
+    if (amount == null || amount <= 0) return;
+    const s = scaleFor({ kcal: h.kcal100, protein: h.protein100 }, amount);
+    setName(`${h.name} (${amount} g)`);
+    setKcal(String(s.kcal));
+    setProtein(s.protein == null ? '' : String(s.protein));
+  };
 
   const save = () => {
     const k = parseNum(kcal);
@@ -312,6 +347,102 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
         ) : null}
         <Button label={initial ? 'Save changes' : 'Add meal'} onPress={save} />
 
+
+        <View style={{ gap: 8, marginTop: 8 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            Search a food
+          </T>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Pizza, rice, chicken"
+              placeholderTextColor={color.text2}
+              returnKeyType="search"
+              onSubmitEditing={search}
+              style={{ ...input, flex: 1 }}
+            />
+            <Pressable
+              accessibilityRole="button"
+              onPress={search}
+              disabled={busy}
+              style={({ pressed }) => ({ height: 54, paddingHorizontal: 18, borderRadius: 16, backgroundColor: color.surface2, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.5 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}
+            >
+              <T size={16} weight="bold">
+                {busy ? '…' : 'Search'}
+              </T>
+            </Pressable>
+          </View>
+          <T size={13} tint={color.text2}>
+            From the US government food database. Values are for 100 g, then scaled to what you ate. It may not know local dishes, so type those above.
+          </T>
+          {picked ? (
+            <Card pad={16} style={{ gap: 10 }}>
+              <T size={16} weight="bold">
+                {picked.name}
+              </T>
+              <T size={13} tint={color.text2}>{`${picked.kcal100} kcal per 100 g`}</T>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <TextInput
+                  value={grams}
+                  onChangeText={(g) => {
+                    setGrams(g);
+                    applyPick(picked, g);
+                  }}
+                  keyboardType="decimal-pad"
+                  accessibilityLabel="Grams eaten"
+                  style={{ ...input, width: 110 }}
+                />
+                <T size={16} tint={color.text2}>
+                  grams eaten
+                </T>
+              </View>
+              <T size={13} tint={color.text2}>
+                Filled in above. Change anything you like.
+              </T>
+            </Card>
+          ) : null}
+          {hits && !picked ? (
+            hits.length ? (
+              <Card pad={8}>
+                {hits.slice(0, 10).map((h, i) => (
+                  <Pressable
+                    key={`${h.name}-${i}`}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setPicked(h);
+                      setGrams('100');
+                      applyPick(h, '100');
+                    }}
+                    style={({ pressed }) => ({ minHeight: 60, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <T size={15} weight="semibold">
+                      {h.name}
+                    </T>
+                    <T size={13} tint={color.text2}>{`${h.kcal100} kcal per 100 g`}</T>
+                  </Pressable>
+                ))}
+              </Card>
+            ) : (
+              <T size={14} tint={color.text2}>
+                Nothing found. Try another word, or type the meal above.
+              </T>
+            )
+          ) : null}
+          <T size={13} tint={color.text2} style={{ marginTop: 6 }}>
+            Without a key you get about 50 searches a day. A free key from fdc.nal.usda.gov/api-key-signup.html allows 1,000 an hour.
+          </T>
+          <TextInput
+            value={f.fdcKey}
+            onChangeText={(k) => change((x) => ({ ...x, fdcKey: k.trim() }))}
+            placeholder="USDA key (optional)"
+            placeholderTextColor={color.text2}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="USDA API key, optional"
+            style={input}
+          />
+        </View>
       </ScrollView>
     </View>
   );

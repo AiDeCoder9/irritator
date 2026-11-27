@@ -1,7 +1,7 @@
 import Storage from 'expo-sqlite/kv-store';
 import notifee, { AlarmType, AndroidImportance, AndroidVisibility, TriggerType } from 'react-native-notify-kit';
 
-import { fastEvents, Food, foodDefaults } from './foodCore';
+import { fastEvents, Food, foodDefaults, Hit, parseUsda } from './foodCore';
 import { timeText } from './phase';
 
 export * from './foodCore';
@@ -58,5 +58,31 @@ export async function rescheduleFast(): Promise<void> {
       },
       { type: TriggerType.TIMESTAMP, timestamp: e.ts, alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
     );
+  }
+}
+
+/* ---------- USDA FoodData Central search ---------- */
+
+const USDA = 'https://api.nal.usda.gov/fdc/v1/foods/search';
+
+/** Searches plain and cooked foods (not store brands). Without your own free key the shared DEMO_KEY allows about 50 searches a day. */
+export async function searchFoods(query: string, key: string): Promise<Hit[]> {
+  const url =
+    `${USDA}?api_key=${encodeURIComponent(key.trim() || 'DEMO_KEY')}&query=${encodeURIComponent(query)}` +
+    `&dataType=${encodeURIComponent('Foundation,SR Legacy,Survey (FNDDS)')}&pageSize=15`;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 10_000);
+  try {
+    const res = await fetch(url, { signal: ctl.signal });
+    if (res.status === 429) throw new Error(key.trim() ? 'Too many searches. Try again in an hour.' : 'Search limit reached for today. Add your own free key below for more.');
+    if (res.status === 403) throw new Error('The USDA key was refused. Check it, or clear it to use the shared one.');
+    if (!res.ok) throw new Error(`The food search failed (${res.status}). Try again, or type the meal.`);
+    return parseUsda(await res.json());
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw new Error('The search took too long. Check your internet, or type the meal.');
+    if (e instanceof TypeError) throw new Error('No internet. Type the meal instead.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
 }
