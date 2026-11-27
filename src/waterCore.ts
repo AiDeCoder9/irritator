@@ -68,7 +68,7 @@ export function bumpsFor(days: boolean[], kinds: ('gym' | 'run')[]): number[] {
 export const goalOf = (w: Water, now = Date.now()) => baseGoal(w) + (w.bumps?.[new Date(now).getDay()] ?? 0);
 
 export function setWeight(w: Water, kg: number, now = Date.now()): Water {
-  const v = Math.min(250, Math.max(30, Math.round(kg)));
+  const v = Math.min(250, Math.max(30, Math.round(kg * 10) / 10));
   const today = new Date(now).toDateString();
   const log = w.weightLog.filter((e) => new Date(e.t).toDateString() !== today);
   return { ...w, weightKg: v, weightLog: [...log, { t: now, kg: v }] };

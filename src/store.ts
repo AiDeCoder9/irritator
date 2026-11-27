@@ -2,6 +2,7 @@ import Storage from 'expo-sqlite/kv-store';
 
 import { DEFAULT_KINDS, type Kind } from './kinds';
 import type { DayEntry } from './progressCore';
+import { sleepDefaults, type Sleep } from './sleepCore';
 
 export type Gym = { id: string; label: string; lat: number; lng: number; travelMin: number };
 export type Home = { lat: number; lng: number; label: string };
@@ -40,6 +41,8 @@ export type State = {
   /** One entry per gym day: went or skipped. Starts empty; earlier days are not tracked. */
   history: DayEntry[];
   bestStreak: number;
+  /** Bedtime reminder, worked back from the alarm. */
+  sleep: Sleep;
 };
 
 export const defaults: State = {
@@ -63,6 +66,7 @@ export const defaults: State = {
   onboarded: false,
   history: [],
   bestStreak: 4,
+  sleep: sleepDefaults,
 };
 
 const KEY = 'irritator.state.v1';

@@ -22,6 +22,8 @@ export type Targets = {
   heightCm: number | null;
   /** Your own rest-day calories. null means use the estimate from weight and goal. */
   restKcal: number | null;
+  /** When the weight-trend suggestion was last answered. Only weigh-ins after this count toward the next one. */
+  lastAdjust: number | null;
 };
 export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string; targets: Targets };
 
@@ -31,7 +33,7 @@ export const foodDefaults: Food = {
   meals: [],
   saved: [],
   fdcKey: '',
-  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null },
+  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
 };
 

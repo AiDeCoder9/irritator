@@ -26,6 +26,7 @@ import { checkAtGym, distanceM, HOME_LEFT_M, quietPlace } from './src/gym';
 import { Onboarding } from './src/onboarding';
 import { kindOf } from './src/kinds';
 import { isMissed, phaseOf } from './src/phase';
+import { rescheduleBedtime, sleepLine } from './src/sleep';
 import {
   ClearedScreen,
   CountdownScreen,
@@ -47,10 +48,14 @@ import { findRecentRun, runSummary } from './src/health';
 import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
-import { bumpsFor } from './src/waterCore';
+import { bumpsFor, goalOf, setWeight } from './src/waterCore';
+import { ymd } from './src/progressCore';
+import { weekReview } from './src/reviewCore';
+import { ReviewScreen } from './src/reviewScreen';
+import { suggestedRestKcal } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -86,6 +91,13 @@ export default function App() {
   const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
   const foodDay = { gym: 'Gym day', run: 'Run day', rest: 'Rest day' }[dayTypeOf(state.days, state.kinds, now)];
   const missing = useRef(false);
+
+  // Bedtime reminders follow the alarm. Redo them whenever the alarm, days or sleep hours change.
+  const bedKey = JSON.stringify([state.sleep, state.alarmHour, state.alarmMinute, state.dayTimes, state.days, state.alarmAt]);
+  useEffect(() => {
+    rescheduleBedtime(state).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bedKey]);
 
   useEffect(() => {
     ensureChannels().catch((e) => setError(`Could not create notification channels: ${message(e)}`));
@@ -377,8 +389,36 @@ export default function App() {
         <TargetsScreen api={food} weightKg={water.w.weightKg} onBack={() => setRoute('food')} />
       ) : route === 'fasting' ? (
         <FastingScreen api={food} onBack={() => setRoute('food')} />
+      ) : route === 'review' ? (
+        <ReviewScreen
+          onBack={() => setRoute('progress')}
+          r={weekReview({
+            now,
+            history: state.history,
+            days: state.days,
+            streak: state.streak,
+            waterTotalOn: (ts) => water.w.drinks.filter((d) => ymd(d.t) === ymd(ts)).reduce((a, d) => a + d.ml, 0),
+            waterGoalOn: (ts) => goalOf(water.w, ts),
+            kcalOn: (ts) => food.f.meals.filter((m) => ymd(m.t) === ymd(ts)).reduce((a, m) => a + m.kcal, 0),
+            kcalTargetOn: (ts) => targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, ts)).kcal,
+            weightLog: water.w.weightLog,
+          })}
+        />
       ) : route === 'progress' ? (
-        <ProgressScreen s={state} water={water.w} now={now} />
+        <ProgressScreen
+          s={state}
+          water={water.w}
+          now={now}
+          targets={food.f.targets}
+          onReview={() => setRoute('review')}
+          onLogWeight={(kg) => water.change((x) => setWeight(x, kg))}
+          onApply={(delta) =>
+            food.change((f) => {
+              const rest = f.targets.restKcal ?? suggestedRestKcal(f.targets.goal, water.w.weightKg, f.targets);
+              return { ...f, targets: { ...f.targets, restKcal: delta ? rest + delta : f.targets.restKcal, lastAdjust: Date.now() } };
+            })
+          }
+        />
       ) : route === 'water' ? (
         <WaterScreen api={water} now={now} onSettings={() => setRoute('waterSettings')} />
       ) : route === 'waterSettings' ? (
@@ -398,6 +438,7 @@ export default function App() {
           onPlaces={() => go('places', 'today')}
           food={{ eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
           onFood={() => setRoute('food')}
+          sleepText={sleepLine(state, now)}
         />
       );
   }

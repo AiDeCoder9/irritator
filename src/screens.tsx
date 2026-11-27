@@ -1,3 +1,4 @@
+import { hoursText, SLEEP_MAX, SLEEP_MIN } from './sleepCore';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -45,12 +46,14 @@ export function TodayScreen({
   onPlaces,
   food,
   onFood,
+  sleepText,
 }: {
   s: State;
   now: number;
   notes: string[];
   food?: { eaten: number; target: number; day: string };
   onFood?: () => void;
+  sleepText?: string | null;
   onToggle: () => void;
   onTest: () => void;
   onSchedule: () => void;
@@ -160,6 +163,12 @@ export function TodayScreen({
           </Card>
         </Pressable>
         )}
+
+        {sleepText ? (
+          <T size={15} tint={color.text2}>
+            {sleepText}
+          </T>
+        ) : null}
 
         {food && onFood ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Food" onPress={onFood} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
@@ -381,6 +390,30 @@ export function SettingsScreen({
             sub="Turn off only to test at home"
             right={<Toggle on={s.verifyLocation} onPress={() => onChange({ verifyLocation: !s.verifyLocation })} label="Check my location at check-in" />}
           />
+        </Card>
+
+        <Card pad={8}>
+          <Row
+            first
+            title="Bedtime reminder"
+            sub={s.sleep.enabled ? `Reminds you ${hoursText(s.sleep.hours)} before your alarm` : 'Works back from your alarm'}
+            right={<Toggle on={s.sleep.enabled} onPress={() => onChange({ sleep: { ...s.sleep, enabled: !s.sleep.enabled } })} label="Bedtime reminder" />}
+          />
+          {s.sleep.enabled ? (
+            <Row
+              title="Sleep you want"
+              right={
+                <Stepper
+                  label="hours"
+                  value={hoursText(s.sleep.hours)}
+                  atMin={s.sleep.hours <= SLEEP_MIN}
+                  atMax={s.sleep.hours >= SLEEP_MAX}
+                  onDec={() => onChange({ sleep: { ...s.sleep, hours: Math.max(SLEEP_MIN, s.sleep.hours - 0.5) } })}
+                  onInc={() => onChange({ sleep: { ...s.sleep, hours: Math.min(SLEEP_MAX, s.sleep.hours + 0.5) } })}
+                />
+              }
+            />
+          ) : null}
         </Card>
 
         <Card pad={8}>

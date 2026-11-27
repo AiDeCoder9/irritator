@@ -1,9 +1,12 @@
-import { ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 
 import { lastDays, statsOf, ymd, type Cell } from './progressCore';
 import type { State } from './store';
 import { color, font } from './theme';
-import { Card, Hero, T, topInset } from './ui';
+import { Button, Card, Chevron, Hero, LinkButton, Row, T, topInset } from './ui';
+import { nudgeFor, weightChange, weightRate } from './weightCore';
+import { MIN_KCAL, isMinor, suggestedRestKcal, type Targets } from './foodCore';
 import { goalOf, type Water } from './waterCore';
 
 const DAY = 86_400_000;
@@ -55,7 +58,105 @@ function Stat({ value, label, sub }: { value: string; label: string; sub?: strin
   );
 }
 
-export function ProgressScreen({ s, water, now }: { s: State; water: Water; now: number }) {
+const DAYMS = 86_400_000;
+
+function WeightCard({ water, targets, now, onLogWeight, onApply }: { water: Water; targets: Targets; now: number; onLogWeight: (kg: number) => void; onApply: (delta: number) => void }) {
+  const [text, setText] = useState('');
+  const log = [...water.weightLog].sort((a, b) => a.t - b.t);
+  const last = log[log.length - 1];
+  const change = weightChange(log, now);
+  const kg = water.weightKg;
+  const entered = parseFloat(text.replace(',', '.'));
+  const valid = Number.isFinite(entered) && entered >= 30 && entered <= 250;
+  const due = targets.lastAdjust == null || now - targets.lastAdjust >= 14 * DAYMS;
+  const rate = weightRate(log, now, targets.lastAdjust ?? 0);
+  const rest = targets.restKcal ?? suggestedRestKcal(targets.goal, kg, targets);
+  const nudge = nudgeFor({ goal: targets.goal, perWeek: rate?.perWeek ?? null, weightKg: kg ?? last?.kg ?? 70, rest, floor: MIN_KCAL, minor: isMinor(targets) });
+  const bars = log.slice(-12);
+  const lo = Math.min(...bars.map((b) => b.kg));
+  const hi = Math.max(...bars.map((b) => b.kg));
+  const save = () => {
+    if (!valid) return;
+    onLogWeight(entered);
+    setText('');
+  };
+  return (
+    <Card pad={18} style={{ gap: 12 }}>
+      <T size={14} weight="semibold" tint={color.text2}>
+        Weight
+      </T>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+        <Hero size={44} tint={color.text} fit>
+          {last ? `${last.kg} kg` : '–'}
+        </Hero>
+        {change != null ? (
+          <T size={15} tint={color.text2}>
+            {change === 0 ? 'no change in 4 weeks' : `${change > 0 ? '+' : ''}${change} kg in 4 weeks`}
+          </T>
+        ) : null}
+      </View>
+      {bars.length >= 2 ? (
+        <View accessible accessibilityLabel="Weight over time" style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 48 }}>
+          {bars.map((b, i) => (
+            <View key={i} style={{ flex: 1, height: 10 + (hi === lo ? 14 : ((b.kg - lo) / (hi - lo)) * 38), borderRadius: 4, backgroundColor: i === bars.length - 1 ? color.yellow : color.surface2 }} />
+          ))}
+        </View>
+      ) : null}
+      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          keyboardType="decimal-pad"
+          placeholder={last ? `${last.kg}` : '70.0'}
+          placeholderTextColor={color.text2}
+          accessibilityLabel="Weight in kilograms"
+          style={{ flex: 1, borderRadius: 14, backgroundColor: color.surface2, padding: 14, fontFamily: font.body, fontSize: 17, color: color.text }}
+        />
+        <View style={{ minWidth: 130 }}>
+          <Button label="Save today" onPress={save} disabled={!valid} height={52} />
+        </View>
+      </View>
+      {nudge.kind === 'up' || nudge.kind === 'down' ? (
+        due ? (
+          <View style={{ gap: 8 }}>
+            <T size={15}>{nudge.message}</T>
+            <T size={15} weight="semibold">
+              {`Try ${nudge.delta > 0 ? '+' : '−'}${Math.abs(nudge.delta)} kcal: rest day ${rest} → ${rest + nudge.delta}.`}
+            </T>
+            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+              <View style={{ minWidth: 120 }}>
+                <Button label="Apply" onPress={() => onApply(nudge.delta)} height={52} />
+              </View>
+              <LinkButton label="Not now" onPress={() => onApply(0)} />
+            </View>
+          </View>
+        ) : null
+      ) : (
+        <T size={14} tint={color.text2}>
+          {nudge.message}
+        </T>
+      )}
+    </Card>
+  );
+}
+
+export function ProgressScreen({
+  s,
+  water,
+  now,
+  targets,
+  onLogWeight,
+  onApply,
+  onReview,
+}: {
+  s: State;
+  water: Water;
+  now: number;
+  targets: Targets;
+  onLogWeight: (kg: number) => void;
+  onApply: (delta: number) => void;
+  onReview: () => void;
+}) {
   const st = statsOf(s.history, s.days, s.streak, s.bestStreak, now);
   const cells = lastDays(s.history, s.days, now, 14);
 
@@ -103,6 +204,12 @@ export function ProgressScreen({ s, water, now }: { s: State; water: Water; now:
           <Stat value={`${waterDays} of 7`} label="Water goal" sub="Days you hit your goal" />
           <Stat value={String(st.runs)} label="Runs" sub="Logged in the last 28 days" />
         </View>
+
+        <WeightCard water={water} targets={targets} now={now} onLogWeight={onLogWeight} onApply={onApply} />
+
+        <Card pad={8}>
+          <Row first title="Weekly review" sub="The last 7 days in one place" right={<Chevron />} onPress={onReview} />
+        </Card>
 
         <T size={13} tint={color.text2}>
           History starts the day this screen was added. Earlier days are not counted. A missed day counts as a skip. Excused days don't count for or against you.
