@@ -60,39 +60,3 @@ export async function rescheduleFast(): Promise<void> {
     );
   }
 }
-
-/* ---------- Open Food Facts search ---------- */
-
-export type Hit = { name: string; brand: string; kcal100: number; protein100: number | null };
-
-/**
- * Packaged foods from Open Food Facts (free, no key). Search is limited to 10 requests a minute, so search on a button, not while typing.
- * It does not know home cooking like dal or rice: those are typed by hand and saved to your meals.
- */
-export async function searchFoods(query: string): Promise<Hit[]> {
-  const url =
-    'https://world.openfoodfacts.org/cgi/search.pl?search_simple=1&action=process&json=1&page_size=15&fields=product_name,brands,nutriments&search_terms=' +
-    encodeURIComponent(query);
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 10_000);
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'IRRITATOR/0.1 (https://github.com/AiDeCoder9/irritator)' }, signal: ctl.signal });
-    if (!res.ok) throw new Error(`The food database said ${res.status}. Type the meal by hand instead.`);
-    const json = (await res.json()) as { products?: { product_name?: string; brands?: string; nutriments?: Record<string, number | string> }[] };
-    const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null);
-    const hits: Hit[] = [];
-    for (const p of json.products ?? []) {
-      const n = p.nutriments ?? {};
-      const kcal = num(n['energy-kcal_100g']) ?? (num(n['energy_100g']) != null ? Math.round(num(n['energy_100g'])! / 4.184) : null);
-      if (!p.product_name?.trim() || kcal == null) continue;
-      hits.push({ name: p.product_name.trim(), brand: (p.brands ?? '').split(',')[0].trim(), kcal100: Math.round(kcal), protein100: num(n['proteins_100g']) });
-    }
-    return hits;
-  } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError') throw new Error('The food database is slow right now. Try again, or type the meal by hand.');
-    if (e instanceof TypeError) throw new Error('Could not reach the food database. Check your connection, or type the meal by hand.');
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
-}
