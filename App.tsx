@@ -43,6 +43,7 @@ import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
 import { ProgressScreen } from './src/progressScreen';
+import { bumpsFor } from './src/waterCore';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
 type Route = 'today' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
@@ -100,6 +101,15 @@ export default function App() {
     },
     [update],
   );
+
+  // Copy the week plan into the water goal bumps, so the notification handler can know today's goal with the app closed.
+  const bumps = bumpsFor(state.days, state.kinds);
+  const bumpsKey = bumps.join(',');
+  const savedBumps = (water.w.bumps ?? []).join(',');
+  const changeWater = water.change;
+  useEffect(() => {
+    if (bumpsKey !== savedBumps) changeWater((x) => ({ ...x, bumps: bumpsKey.split(',').map(Number) }));
+  }, [bumpsKey, savedBumps, changeWater]);
 
   // If the day was missed completely (no check-in long after leave-by), reset the streak and set the next alarm.
   useEffect(() => {
@@ -161,7 +171,7 @@ export default function App() {
   // Changing the time or days while the alarm is on moves the alarm right away.
   const onChange = (patch: Partial<State>) => {
     update(patch);
-    if (state.alarmAt != null && ('alarmHour' in patch || 'alarmMinute' in patch || 'days' in patch)) {
+    if (state.alarmAt != null && ('alarmHour' in patch || 'alarmMinute' in patch || 'days' in patch || 'dayTimes' in patch)) {
       run(() => scheduleAlarm({ ...state, ...patch }));
     }
   };

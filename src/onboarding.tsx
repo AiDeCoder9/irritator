@@ -26,7 +26,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
   const onlyRuns = s.days.every((on, d) => !on || s.kinds[d] === 'run');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const tp = useTimePicker(s, onChange);
+  const tp = useTimePicker();
   const [perm, setPerm] = useState<string[] | null>(null);
 
   const attempt = async (fn: () => Promise<void>) => {
@@ -92,7 +92,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
-              onPress={tp.open}
+              onPress={() => tp.open(s.alarmHour, s.alarmMinute, (h, m) => onChange({ alarmHour: h, alarmMinute: m }))}
               style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
             >
               <Card pad={22} radius={28} style={{ gap: 4 }}>

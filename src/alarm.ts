@@ -11,7 +11,7 @@ import notifee, {
 } from 'react-native-notify-kit';
 
 import { levelAt, messageFor, MESSAGE_EVERY_MIN } from './motivation';
-import { nextOccurrence } from './phase';
+import { nextOccurrenceBy, timeOnDay } from './phase';
 import { kindOf } from './kinds';
 import { addEntry } from './progressCore';
 import type { State } from './store';
@@ -116,7 +116,7 @@ export async function scheduleAlarm(s: State, whenMs?: number): Promise<Partial<
   await cancelNags();
   await notifee.cancelNotification('alarm');
 
-  const alarmAt = whenMs ?? nextOccurrence(s.alarmHour, s.alarmMinute, s.days);
+  const alarmAt = whenMs ?? nextOccurrenceBy((d) => timeOnDay(s, d), s.days);
 
   await notifee.createTriggerNotification(
     {

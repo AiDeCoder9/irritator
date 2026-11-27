@@ -2,36 +2,33 @@ import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/d
 import { useState } from 'react';
 import { Modal, Platform, Pressable, View } from 'react-native';
 
-import type { State } from './store';
 import { color } from './theme';
 import { Button, T } from './ui';
 
-type Change = (p: Partial<State>) => void;
+type Pick = (hour: number, minute: number) => void;
 
 /** Time picker for both platforms. Android opens its own dialog; iOS shows a sheet. Render `sheet` once in the screen. */
-export function useTimePicker(s: State, onChange: Change) {
+export function useTimePicker(title = 'Alarm time') {
   const [shown, setShown] = useState(false);
   const [draft, setDraft] = useState(new Date());
+  const [onPick, setOnPick] = useState<Pick>(() => () => {});
 
-  const current = () => {
+  const open = (hour: number, minute: number, pick: Pick) => {
     const d = new Date();
-    d.setHours(s.alarmHour, s.alarmMinute, 0, 0);
-    return d;
-  };
-
-  const open = () => {
+    d.setHours(hour, minute, 0, 0);
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
-        value: current(),
+        value: d,
         mode: 'time',
         is24Hour: false,
         onChange: (e, picked) => {
-          if (e.type === 'set' && picked) onChange({ alarmHour: picked.getHours(), alarmMinute: picked.getMinutes() });
+          if (e.type === 'set' && picked) pick(picked.getHours(), picked.getMinutes());
         },
       });
       return;
     }
-    setDraft(current());
+    setDraft(d);
+    setOnPick(() => pick);
     setShown(true);
   };
 
@@ -41,13 +38,13 @@ export function useTimePicker(s: State, onChange: Change) {
         <Pressable style={{ flex: 1, backgroundColor: '#000000AA' }} onPress={() => setShown(false)} accessibilityLabel="Close" />
         <View style={{ backgroundColor: color.surface, padding: 20, paddingBottom: 34, gap: 12 }}>
           <T size={17} weight="bold">
-            Alarm time
+            {title}
           </T>
           <DateTimePicker value={draft} mode="time" display="spinner" themeVariant="dark" onChange={(_, d) => d && setDraft(d)} />
           <Button
             label="Done"
             onPress={() => {
-              onChange({ alarmHour: draft.getHours(), alarmMinute: draft.getMinutes() });
+              onPick(draft.getHours(), draft.getMinutes());
               setShown(false);
             }}
           />

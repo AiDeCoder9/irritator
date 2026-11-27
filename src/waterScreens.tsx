@@ -5,6 +5,7 @@ import { timeText } from './phase';
 import { color, font } from './theme';
 import { Button, Card, Chip, Hero, LinkButton, Row, Stepper, T, Toggle, topInset } from './ui';
 import {
+  baseGoal,
   goalOf,
   loadWater,
   logDrink,
@@ -72,7 +73,8 @@ type WaterApi = ReturnType<typeof useWater>;
 export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: number; onSettings: () => void }) {
   const { w, drink, undo, status } = api;
   const total = totalOf(w, now);
-  const goal = goalOf(w);
+  const goal = goalOf(w, now);
+  const bump = w.bumps?.[new Date(now).getDay()] ?? 0;
   const pct = Math.min(1, total / goal);
   const drinks = todaysDrinks(w, now);
   const next = w.enabled ? planReminders(w, now, 1)[0] : null;
@@ -98,6 +100,7 @@ export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: numb
           <T size={16} tint={color.text2}>
             of {mlText(goal)}
             {w.weightKg == null ? ' (a starter goal)' : ''}
+            {bump > 0 ? `, includes ${mlText(bump)} for training today` : ''}
           </T>
           <View
             accessible
@@ -162,7 +165,7 @@ const hour12 = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : '
 export function WaterSettingsScreen({ api, onBack }: { api: WaterApi; onBack: () => void }) {
   const { w, change, status } = api;
   const suggested = suggestedGoal(w.weightKg);
-  const goal = goalOf(w);
+  const goal = baseGoal(w);
 
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -213,7 +216,7 @@ export function WaterSettingsScreen({ api, onBack }: { api: WaterApi; onBack: ()
             }
           />
           <Row
-            title="Daily goal"
+            title="Daily goal (rest day)"
             sub={w.customGoalMl == null ? `Suggested from your weight: ${mlText(suggested)}` : `Your own goal. Suggested: ${mlText(suggested)}`}
             right={
               <Stepper
@@ -221,15 +224,15 @@ export function WaterSettingsScreen({ api, onBack }: { api: WaterApi; onBack: ()
                 value={mlText(goal)}
                 atMin={goal <= 1000}
                 atMax={goal >= 6000}
-                onDec={() => change((x) => ({ ...x, customGoalMl: Math.max(1000, goalOf(x) - 250) }))}
-                onInc={() => change((x) => ({ ...x, customGoalMl: Math.min(6000, goalOf(x) + 250) }))}
+                onDec={() => change((x) => ({ ...x, customGoalMl: Math.max(1000, baseGoal(x) - 250) }))}
+                onInc={() => change((x) => ({ ...x, customGoalMl: Math.min(6000, baseGoal(x) + 250) }))}
               />
             }
           />
           {w.customGoalMl != null ? <LinkButton label="Use the suggested goal" onPress={() => change((x) => ({ ...x, customGoalMl: null }))} tint={color.yellow} /> : null}
         </Card>
         <T size={13} tint={color.text2}>
-          The goal is an estimate, about 35 ml per kg. It is not medical advice.
+          Gym days add 500 ml and run days add 750 ml on top. The goal is an estimate, about 35 ml per kg. It is not medical advice.
         </T>
 
         <View style={{ gap: 10 }}>

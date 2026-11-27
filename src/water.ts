@@ -72,7 +72,7 @@ export async function rescheduleWater(): Promise<void> {
   const now = Date.now();
   const plan = planReminders(w, now);
   const total = totalOf(w, now);
-  const goal = goalOf(w);
+  const goal = goalOf(w, now);
   for (let i = 0; i < plan.length; i++) {
     await notifee.createTriggerNotification(
       {

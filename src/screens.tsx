@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { activeGym, travelOf } from './gym';
 import { kindOf } from './kinds';
 import { levelAt, messageFor } from './motivation';
-import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeText } from './phase';
+import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeOnDay, timeText } from './phase';
 import { Places } from './places';
 import { WeekPlan } from './weekPlan';
 import { useTimePicker } from './timePicker';
@@ -53,7 +53,8 @@ export function TodayScreen({
   onPlaces: () => void;
 }) {
   const on = s.alarmAt != null;
-  const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
+  const shown = on ? new Date(s.alarmAt!) : null;
+  const [hour12, ampm] = (shown ? time12(shown.getHours(), shown.getMinutes()) : time12(s.alarmHour, s.alarmMinute)).split(' ');
   const gym = activeGym(s);
   const nextRun = s.alarmAt != null && kindOf(s) === 'run';
   const fg = on ? color.ink : color.text;
@@ -173,8 +174,13 @@ export function TodayScreen({
 
 export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: { s: State; onChange: Patch; onBack: () => void; backLabel?: string }) {
   const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
-  const tp = useTimePicker(s, onChange);
+  const tp = useTimePicker();
 
+  const setDayTime = (day: number, h: number | null, m = 0) => {
+    const next = [...s.dayTimes];
+    next[day] = h == null ? null : h * 60 + m;
+    onChange({ dayTimes: next });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -188,13 +194,13 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
-          onPress={tp.open}
+          accessibilityLabel={`Usual alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
+          onPress={() => tp.open(s.alarmHour, s.alarmMinute, (h, m) => onChange({ alarmHour: h, alarmMinute: m }))}
           style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
         >
           <Card pad={22} radius={28} style={{ gap: 6 }}>
             <T size={14} weight="semibold" tint={color.text2}>
-              Alarm time
+              Usual alarm time
             </T>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
               <Hero size={88} tint={color.text} fit>
@@ -203,7 +209,7 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
               <Text style={{ fontFamily: font.display, fontSize: 26, color: color.text, paddingBottom: 10 }}>{ampm}</Text>
             </View>
             <T size={14} tint={color.text2}>
-              Tap the time to change it
+              Tap to change. Used on every day without its own time.
             </T>
           </Card>
         </Pressable>
@@ -216,6 +222,46 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
           <T size={14} tint={color.text2}>
             Tap a day to switch between gym, run and off.
           </T>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            Alarm time for each day
+          </T>
+          <Card pad={8}>
+            {DAY_ORDER.filter((d) => s.days[d]).map((d, i) => {
+              const [h, m] = timeOnDay(s, d);
+              const own = s.dayTimes[d] != null;
+              return (
+                <Row
+                  key={d}
+                  first={i === 0}
+                  title={DAY_NAMES[d]}
+                  sub={`${s.kinds[d] === 'run' ? 'Run' : 'Gym'}${own ? '' : ', usual time'}`}
+                  onPress={() => tp.open(h, m, (hh, mm) => setDayTime(d, hh, mm))}
+                  right={
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      {own ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Use the usual time on ${DAY_NAMES[d]}`}
+                          onPress={() => setDayTime(d, null)}
+                          hitSlop={8}
+                        >
+                          <T size={14} weight="semibold" tint={color.text2}>
+                            Reset
+                          </T>
+                        </Pressable>
+                      ) : null}
+                      <T size={17} weight="bold" tint={own ? color.yellow : color.text}>
+                        {time12(h, m)}
+                      </T>
+                    </View>
+                  }
+                />
+              );
+            })}
+          </Card>
         </View>
 
         <View style={{ gap: 10 }}>
@@ -262,7 +308,7 @@ export function SettingsScreen({
         </Hero>
 
         <Card pad={8}>
-          <Row first title="Schedule" sub={`${time12(s.alarmHour, s.alarmMinute)}, ${s.days.every(Boolean) ? 'every day' : `${s.days.filter(Boolean).length} days a week`}`} right={<Chevron />} onPress={onSchedule} />
+          <Row first title="Schedule" sub={`${s.dayTimes.some((x, d) => x != null && s.days[d]) ? 'Times vary' : time12(s.alarmHour, s.alarmMinute)}, ${s.days.every(Boolean) ? 'every day' : `${s.days.filter(Boolean).length} days a week`}`} right={<Chevron />} onPress={onSchedule} />
           <Row
             title="Places"
             sub={s.gyms.length ? `${s.home ? 'Home and ' : ''}${s.gyms.length} gym${s.gyms.length > 1 ? 's' : ''}` : 'No gym saved yet'}

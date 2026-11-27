@@ -9,6 +9,8 @@ export type Home = { lat: number; lng: number; label: string };
 export type State = {
   alarmHour: number;
   alarmMinute: number;
+  /** A different alarm time for one weekday, in minutes after midnight. Null uses the default time above. Indexed like days. */
+  dayTimes: (number | null)[];
   /** Which days the alarm rings, indexed like Date.getDay(): 0 = Sunday. */
   days: boolean[];
   /** What each weekday is when its alarm is on: gym or run. Indexed like days. */
@@ -43,6 +45,7 @@ export type State = {
 export const defaults: State = {
   alarmHour: 5,
   alarmMinute: 0,
+  dayTimes: [null, null, null, null, null, null, null],
   days: [true, true, true, true, true, true, true],
   kinds: DEFAULT_KINDS,
   countdownMin: 20,

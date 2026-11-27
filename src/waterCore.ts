@@ -22,6 +22,8 @@ export type Water = {
   intervalMin: number;
   /** Remind again every 15 minutes, up to 3 times, until you log. */
   repeat: boolean;
+  /** Extra ml for each weekday (0 = Sunday): a gym or run day needs more. Copied from your week plan. */
+  bumps: number[];
   drinks: Drink[];
   /** Last time a drink was logged from a notification. Proves the background path works. */
   lastFromNotification: number | null;
@@ -38,6 +40,7 @@ export const waterDefaults: Water = {
   endHour: 21,
   intervalMin: 90,
   repeat: false,
+  bumps: [0, 0, 0, 0, 0, 0, 0],
   drinks: [],
   lastFromNotification: null,
 };
@@ -50,7 +53,19 @@ export function suggestedGoal(weightKg: number | null): number {
   return Math.round((weightKg * 35) / 50) * 50;
 }
 
-export const goalOf = (w: Water) => w.customGoalMl ?? suggestedGoal(w.weightKg);
+/** The goal before any training bump: your own number, or the suggested one. */
+export const baseGoal = (w: Water) => w.customGoalMl ?? suggestedGoal(w.weightKg);
+
+/** Extra water on training days (estimates): gym +500 ml, run +750 ml. Rest and off days get nothing. */
+export const GYM_BUMP_ML = 500;
+export const RUN_BUMP_ML = 750;
+
+export function bumpsFor(days: boolean[], kinds: ('gym' | 'run')[]): number[] {
+  return days.map((on, d) => (!on ? 0 : kinds[d] === 'run' ? RUN_BUMP_ML : GYM_BUMP_ML));
+}
+
+/** Goal for a given day: base goal plus that weekday's bump. */
+export const goalOf = (w: Water, now = Date.now()) => baseGoal(w) + (w.bumps?.[new Date(now).getDay()] ?? 0);
 
 export function setWeight(w: Water, kg: number, now = Date.now()): Water {
   const v = Math.min(250, Math.max(30, Math.round(kg)));
@@ -91,7 +106,7 @@ export function planReminders(w: Water, now = Date.now(), maxIds = MAX_IDS): num
   const step = w.intervalMin * MIN;
   const today = todaysDrinks(w, now);
   const lastToday = today.length ? today[today.length - 1].t : null;
-  const done = totalOf(w, now) >= goalOf(w);
+  const done = totalOf(w, now) >= goalOf(w, now);
 
   const out: number[] = [];
   for (let offset = done ? 1 : 0; offset < 4 && out.length < maxIds; offset++) {

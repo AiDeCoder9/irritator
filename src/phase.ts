@@ -74,15 +74,27 @@ export function dayName(ts: number) {
   return DAY_NAMES[new Date(ts).getDay()];
 }
 
-/** Next time the alarm should ring on one of the chosen days. */
-export function nextOccurrence(hour: number, minute: number, days: boolean[], from = Date.now()) {
+/** Next alarm over the chosen days, where each weekday can have its own time. `timeFor` gets Date.getDay() (0 = Sunday). */
+export function nextOccurrenceBy(timeFor: (day: number) => [number, number], days: boolean[], from = Date.now()) {
   for (let i = 0; i < 8; i++) {
     const d = new Date(from);
     d.setDate(d.getDate() + i);
-    d.setHours(hour, minute, 0, 0);
+    const [h, m] = timeFor(d.getDay());
+    d.setHours(h, m, 0, 0);
     if (days[d.getDay()] && d.getTime() > from + 5000) return d.getTime();
   }
   return from + DAY;
+}
+
+/** Same time on every chosen day. */
+export function nextOccurrence(hour: number, minute: number, days: boolean[], from = Date.now()) {
+  return nextOccurrenceBy(() => [hour, minute], days, from);
+}
+
+/** The alarm time for a weekday: its own time if set, otherwise the default. */
+export function timeOnDay(s: { alarmHour: number; alarmMinute: number; dayTimes: (number | null)[] }, day: number): [number, number] {
+  const own = s.dayTimes[day];
+  return own == null ? [s.alarmHour, s.alarmMinute] : [Math.floor(own / 60), own % 60];
 }
 
 /** 5:00 am style, matching how people say alarm times. */

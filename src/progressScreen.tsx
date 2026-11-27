@@ -60,10 +60,10 @@ export function ProgressScreen({ s, water, now }: { s: State; water: Water; now:
   const cells = lastDays(s.history, s.days, now, 14);
 
   // Water days: how many of the last 7 days reached today's goal (past goals are not stored yet).
-  const goal = goalOf(water);
   let waterDays = 0;
   for (let i = 0; i < 7; i++) {
     const date = ymd(now - i * DAY);
+    const goal = goalOf(water, now - i * DAY);
     const total = water.drinks.filter((d) => ymd(d.t) === date).reduce((a, d) => a + d.ml, 0);
     if (total >= goal) waterDays++;
   }
