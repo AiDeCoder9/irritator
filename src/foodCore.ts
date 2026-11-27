@@ -12,7 +12,13 @@ export type Fast = {
   /** Notify when the window opens and closes. */
   notify: boolean;
 };
-export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string };
+export type Goal = 'lose' | 'maintain' | 'build';
+export type Targets = {
+  goal: Goal;
+  /** Your own rest-day calories. null means use the estimate from weight and goal. */
+  restKcal: number | null;
+};
+export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string; targets: Targets };
 
 export const EAT_HOURS = [8, 10, 12];
 
@@ -20,6 +26,7 @@ export const foodDefaults: Food = {
   meals: [],
   saved: [],
   fdcKey: '',
+  targets: { goal: 'maintain', restKcal: null },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
 };
 
@@ -172,4 +179,45 @@ export function tidy(s: string): string {
   const t = s.trim();
   if (t === t.toUpperCase()) return t.charAt(0) + t.slice(1).toLowerCase();
   return t;
+}
+
+/* ---------- daily targets that follow the training week ---------- */
+
+export type DayType = 'gym' | 'run' | 'rest';
+
+export const GOAL_LABEL: Record<Goal, string> = { lose: 'Lose fat', maintain: 'Stay the same', build: 'Build muscle' };
+/** Calories added to or taken from the estimate for each goal. Small on purpose. */
+export const GOAL_KCAL: Record<Goal, number> = { lose: -300, maintain: 0, build: 250 };
+/** Extra calories on training days, on top of a rest day. */
+export const DAY_KCAL: Record<DayType, number> = { gym: 150, run: 250, rest: 0 };
+/** Protein in grams per kg of body weight. */
+export const GOAL_PROTEIN: Record<Goal, number> = { lose: 1.8, maintain: 1.4, build: 1.8 };
+/** The estimate never suggests less than this. */
+export const MIN_KCAL = 1500;
+export const DEFAULT_KCAL = 2200;
+
+/** A rough rest-day maintenance estimate: about 31 kcal per kg, to the nearest 50. A guess, not a measurement. */
+export function maintenanceKcal(weightKg: number | null): number {
+  return weightKg == null ? DEFAULT_KCAL : Math.round((weightKg * 31) / 50) * 50;
+}
+
+/** The estimated rest-day calories for a goal, before any override. */
+export function suggestedRestKcal(goal: Goal, weightKg: number | null): number {
+  return Math.max(MIN_KCAL, maintenanceKcal(weightKg) + GOAL_KCAL[goal]);
+}
+
+/** What kind of day it is: a gym or run day when the alarm is on that weekday, otherwise rest. */
+export function dayTypeOf(days: boolean[], kinds: ('gym' | 'run')[], ts: number): DayType {
+  const d = new Date(ts).getDay();
+  return !days[d] ? 'rest' : kinds[d] === 'run' ? 'run' : 'gym';
+}
+
+/** Calories and protein for one day. Your own rest-day number is always respected. */
+export function targetFor(t: Targets, weightKg: number | null, day: DayType) {
+  const rest = t.restKcal ?? suggestedRestKcal(t.goal, weightKg);
+  return {
+    rest,
+    kcal: rest + DAY_KCAL[day],
+    protein: weightKg == null ? null : Math.round((weightKg * GOAL_PROTEIN[t.goal]) / 5) * 5,
+  };
 }

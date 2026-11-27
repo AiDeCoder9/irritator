@@ -2,7 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import {
+  DAY_KCAL,
+  DayType,
+  dayTypeOf,
   EAT_HOURS,
+  Goal,
+  GOAL_KCAL,
+  GOAL_LABEL,
+  MIN_KCAL,
+  suggestedRestKcal,
+  targetFor,
   fastState,
   Food,
   hm,
@@ -22,9 +31,10 @@ import {
 import { time12, timeText } from './phase';
 import { useTimePicker } from './timePicker';
 import { color, font } from './theme';
-import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, T, Toggle, topInset } from './ui';
+import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, Stepper, T, Toggle, topInset } from './ui';
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const DAY_NAME: Record<DayType, string> = { gym: 'Gym day', run: 'Run day', rest: 'Rest day' };
 const page = { paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 16 } as const;
 
 /** Food lives in storage like water does. Changes save at once and the fasting notifications follow. */
@@ -83,9 +93,17 @@ export function FoodScreen({
   onAdd,
   onEdit,
   onFasting,
+  onTargets,
+  weightKg,
+  days,
+  kinds,
 }: {
   api: FoodApi;
   now: number;
+  weightKg: number | null;
+  days: boolean[];
+  kinds: ('gym' | 'run')[];
+  onTargets: () => void;
   onAdd: () => void;
   onEdit: (m: Meal) => void;
   onFasting: () => void;
@@ -94,6 +112,9 @@ export function FoodScreen({
   const totals = totalsOf(f, now);
   const meals = todaysMeals(f, now);
   const fs = fastState(f.fast, now);
+  const day = dayTypeOf(days, kinds, now);
+  const goal = targetFor(f.targets, weightKg, day);
+  const eaten = Math.min(1, totals.kcal / goal.kcal);
 
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -130,17 +151,27 @@ export function FoodScreen({
           )}
         </Pressable>
 
-        <Card pad={20} style={{ gap: 4 }}>
-          <T size={14} weight="semibold" tint={color.text2}>
-            Today
-          </T>
-          <Hero size={44} tint={color.text} fit>
-            {`${totals.kcal} kcal`}
-          </Hero>
-          <T size={15} tint={color.text2}>
-            {totals.count === 0 ? 'Nothing logged yet.' : `${totals.protein} g protein, ${totals.count} ${totals.count === 1 ? 'meal' : 'meals'}`}
-          </T>
-        </Card>
+        <Pressable accessibilityRole="button" onPress={onTargets} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+          <Card pad={20} style={{ gap: 4 }}>
+            <T size={14} weight="semibold" tint={color.text2}>
+              {`${DAY_NAME[day]} target`}
+            </T>
+            <Hero size={44} tint={color.text} fit>
+              {`${totals.kcal} / ${goal.kcal}`}
+            </Hero>
+            <T size={15} tint={color.text2}>
+              {totals.kcal > goal.kcal ? `kcal. ${totals.kcal - goal.kcal} over.` : `kcal. ${goal.kcal - totals.kcal} left.`}
+            </T>
+            <View style={{ height: 10, borderRadius: 5, backgroundColor: color.surface2, overflow: 'hidden', marginTop: 6 }}>
+              <View style={{ width: `${eaten * 100}%`, height: 10, borderRadius: 5, backgroundColor: color.yellow }} />
+            </View>
+            <T size={15} tint={color.text2} style={{ marginTop: 6 }}>
+              {goal.protein == null
+                ? `${totals.protein} g protein. Add your weight in Water settings for a protein target.`
+                : `${totals.protein} of ${goal.protein} g protein`}
+            </T>
+          </Card>
+        </Pressable>
 
         <Button label="Add a meal" onPress={onAdd} height={60} />
 
@@ -506,6 +537,74 @@ export function FastingScreen({ api, onBack }: { api: FoodApi; onBack: () => voi
         </Card>
       </ScrollView>
       {tp.sheet}
+    </View>
+  );
+}
+
+/* ---------- Daily targets ---------- */
+
+export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightKg: number | null; onBack: () => void }) {
+  const { f, change } = api;
+  const tg = f.targets;
+  const set = (p: Partial<typeof tg>) => change((x) => ({ ...x, targets: { ...x.targets, ...p } }));
+  const suggested = suggestedRestKcal(tg.goal, weightKg);
+  const rest = tg.restKcal ?? suggested;
+  const step = (d: number) => set({ restKcal: Math.min(5000, Math.max(800, rest + d)) });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <ScrollView contentContainerStyle={{ ...page, gap: 18 }}>
+        <View>
+          <Pressable accessibilityRole="button" onPress={onBack} style={{ minHeight: 48, justifyContent: 'center' }}>
+            <T size={16} weight="semibold" tint={color.text2}>
+              ‹ Food
+            </T>
+          </Pressable>
+          <Hero size={34} tint={color.text}>
+            Daily targets
+          </Hero>
+        </View>
+
+        <View style={{ gap: 10 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            Your goal
+          </T>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            {(['lose', 'maintain', 'build'] as Goal[]).map((g) => (
+              <Chip key={g} label={GOAL_LABEL[g]} on={tg.goal === g} onPress={() => set({ goal: g, restKcal: null })} />
+            ))}
+          </View>
+          <T size={14} tint={color.text2}>
+            {`Changing the goal resets rest-day calories to the estimate (${GOAL_KCAL[tg.goal] >= 0 ? '+' : ''}${GOAL_KCAL[tg.goal]} kcal for this goal).`}
+          </T>
+        </View>
+
+        <Card pad={16} style={{ gap: 12 }}>
+          <Stepper label="Rest-day calories" value={`${rest} kcal`} onDec={() => step(-50)} onInc={() => step(50)} atMin={rest <= 800} atMax={rest >= 5000} />
+          {tg.restKcal != null ? <LinkButton label={`Use the estimate (${suggested} kcal)`} onPress={() => set({ restKcal: null })} /> : null}
+          <T size={14} tint={color.text2}>
+            {weightKg == null ? 'The estimate uses a default because your weight is not set yet. Add it in Water settings.' : `The estimate is about 31 kcal per kg of your ${weightKg} kg, adjusted for your goal.`}
+          </T>
+        </Card>
+
+        <Card pad={16} style={{ gap: 6 }}>
+          <T size={15} weight="bold">
+            Training days add food
+          </T>
+          <T size={14} tint={color.text2}>
+            {`Gym days add ${DAY_KCAL.gym} kcal and run days add ${DAY_KCAL.run} kcal on top of a rest day. Days follow your alarm week plan, so a day with no alarm is a rest day.`}
+          </T>
+        </Card>
+
+        <Card pad={16} style={{ gap: 6 }}>
+          <T size={15} weight="bold">
+            These are estimates
+          </T>
+          <T size={14} tint={color.text2}>
+            {`Real needs depend on age, height, sex and how active you are. The estimate never goes below ${MIN_KCAL} kcal by itself. Use it as a starting point and adjust to how you feel and how your weight moves. Not medical advice. If you are under 18, pregnant, have a health condition, or have ever had an eating disorder, ask a doctor before setting a calorie goal.`}
+          </T>
+        </Card>
+      </ScrollView>
     </View>
   );
 }

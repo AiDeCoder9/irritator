@@ -14,7 +14,7 @@ export function loadFood(): Food {
     const raw = Storage.getItemSync(KEY);
     if (!raw) return foodDefaults;
     const saved = JSON.parse(raw);
-    return { ...foodDefaults, ...saved, fast: { ...foodDefaults.fast, ...saved.fast } };
+    return { ...foodDefaults, ...saved, fast: { ...foodDefaults.fast, ...saved.fast }, targets: { ...foodDefaults.targets, ...saved.targets } };
   } catch {
     return foodDefaults;
   }

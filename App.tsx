@@ -42,13 +42,13 @@ import {
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
-import { AddMealScreen, FastingScreen, FoodScreen, useFood } from './src/foodScreens';
+import { AddMealScreen, FastingScreen, FoodScreen, TargetsScreen, useFood } from './src/foodScreens';
 import type { Meal } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
 import { bumpsFor } from './src/waterCore';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -344,9 +344,15 @@ export default function App() {
             setRoute('addMeal');
           }}
           onFasting={() => setRoute('fasting')}
+          onTargets={() => setRoute('targets')}
+          weightKg={water.w.weightKg}
+          days={state.days}
+          kinds={state.kinds}
         />
       ) : route === 'addMeal' ? (
         <AddMealScreen key={editMeal?.id ?? 'new'} api={food} initial={editMeal} onDone={() => setRoute('food')} />
+      ) : route === 'targets' ? (
+        <TargetsScreen api={food} weightKg={water.w.weightKg} onBack={() => setRoute('food')} />
       ) : route === 'fasting' ? (
         <FastingScreen api={food} onBack={() => setRoute('food')} />
       ) : route === 'progress' ? (
