@@ -248,3 +248,82 @@ export function targetFor(t: Targets, weightKg: number | null, day: DayType) {
     protein: weightKg == null ? null : Math.round((weightKg * GOAL_PROTEIN[t.goal]) / 5) * 5,
   };
 }
+
+/* ---------- meal plan: week budget, meal slots, suggestions ---------- */
+
+export type PlanDay = {
+  /** Start of that day, as a time. */
+  t: number;
+  type: DayType;
+  target: number;
+  eaten: number;
+  /** past, today or ahead */
+  when: 'past' | 'today' | 'ahead';
+};
+
+/** The Monday-to-Sunday week that contains `now`, with each day's target and what was eaten. */
+export function weekPlan(f: Food, weightKg: number | null, days: boolean[], kinds: ('gym' | 'run')[], now: number) {
+  const today = startOfDay(now);
+  const sinceMonday = (new Date(now).getDay() + 6) % 7;
+  const list: PlanDay[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - sinceMonday + i);
+    const t = d.getTime();
+    const type = dayTypeOf(days, kinds, t + 12 * HOUR);
+    list.push({
+      t,
+      type,
+      target: targetFor(f.targets, weightKg, type).kcal,
+      eaten: f.meals.filter((m) => m.t >= t && m.t < startOfDay(t + 36 * HOUR)).reduce((a, m) => a + m.kcal, 0),
+      when: t < today ? 'past' : t === today ? 'today' : 'ahead',
+    });
+  }
+  const budget = list.reduce((a, d) => a + d.target, 0);
+  // Days that are over are not forgiven, and days that are under are not rolled forward: only today and later share what is left.
+  const eatenSoFar = list.filter((d) => d.when !== 'ahead').reduce((a, d) => a + d.eaten, 0);
+  const open = list.filter((d) => d.when !== 'past');
+  const openTarget = open.reduce((a, d) => a + d.target, 0);
+  return { days: list, budget, eatenSoFar, openTarget, openCount: open.length };
+}
+
+export type Slot = { name: string; share: number };
+
+/** How a day's food is split. With fasting on, two meals and a snack fit the window. */
+export function slotsFor(fastEnabled: boolean): Slot[] {
+  return fastEnabled
+    ? [
+        { name: 'First meal', share: 0.4 },
+        { name: 'Second meal', share: 0.45 },
+        { name: 'Snack', share: 0.15 },
+      ]
+    : [
+        { name: 'Breakfast', share: 0.27 },
+        { name: 'Lunch', share: 0.33 },
+        { name: 'Dinner', share: 0.3 },
+        { name: 'Snack', share: 0.1 },
+      ];
+}
+
+/**
+ * About how much the next meal should be: what is left today, shared across the meals not yet eaten.
+ * Never less than 0. The meals eaten count against the slots, so a late start is not squeezed into one big meal.
+ */
+export function nextMealBudget(targetKcal: number, targetProtein: number | null, eaten: { kcal: number; protein: number; count: number }, slotCount: number) {
+  const slotsLeft = Math.max(1, slotCount - eaten.count);
+  return {
+    kcal: Math.max(0, Math.round((targetKcal - eaten.kcal) / slotsLeft / 10) * 10),
+    protein: targetProtein == null ? null : Math.max(0, Math.round((targetProtein - eaten.protein) / slotsLeft)),
+    slotsLeft,
+    leftKcal: targetKcal - eaten.kcal,
+  };
+}
+
+/** Saved meals that fit the budget best: closest calories without going more than 15% over, then more protein. Up to `n`. */
+export function suggestMeals(saved: Saved[], budgetKcal: number, n = 3): Saved[] {
+  if (budgetKcal <= 0) return [];
+  return saved
+    .filter((s) => s.kcal <= budgetKcal * 1.15)
+    .sort((a, b) => Math.abs(a.kcal - budgetKcal) - Math.abs(b.kcal - budgetKcal) || (b.protein ?? 0) - (a.protein ?? 0))
+    .slice(0, n);
+}

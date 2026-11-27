@@ -7,6 +7,10 @@ import {
   dayTypeOf,
   EAT_HOURS,
   Goal,
+  nextMealBudget,
+  slotsFor,
+  suggestMeals,
+  weekPlan,
   hasProfile,
   isMinor,
   Sex,
@@ -97,6 +101,7 @@ export function FoodScreen({
   onEdit,
   onFasting,
   onTargets,
+  onPlan,
   weightKg,
   days,
   kinds,
@@ -107,6 +112,7 @@ export function FoodScreen({
   days: boolean[];
   kinds: ('gym' | 'run')[];
   onTargets: () => void;
+  onPlan: () => void;
   onAdd: () => void;
   onEdit: (m: Meal) => void;
   onFasting: () => void;
@@ -178,6 +184,20 @@ export function FoodScreen({
                 Tap to add age and height for a better estimate.
               </T>
             ) : null}
+          </Card>
+        </Pressable>
+
+        <Pressable accessibilityRole="button" onPress={onPlan} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+          <Card pad={16} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <T size={17} weight="bold">
+                Meal plan
+              </T>
+              <T size={14} tint={color.text2}>
+                What to eat next and how your week is going.
+              </T>
+            </View>
+            <Chevron />
           </Card>
         </Pressable>
 
@@ -637,6 +657,174 @@ export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightK
             {`Real needs depend on age, height, sex and how active you are. The estimate never goes below ${MIN_KCAL} kcal by itself. Use it as a starting point and adjust to how you feel and how your weight moves. Not medical advice. If you are under 18, pregnant, have a health condition, or have ever had an eating disorder, ask a doctor before setting a calorie goal.`}
           </T>
         </Card>
+      </ScrollView>
+    </View>
+  );
+}
+
+/* ---------- Meal plan ---------- */
+
+const SHORT: Record<number, string> = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
+
+export function PlanScreen({
+  api,
+  now,
+  weightKg,
+  days,
+  kinds,
+  onBack,
+  onAdd,
+}: {
+  api: FoodApi;
+  now: number;
+  weightKg: number | null;
+  days: boolean[];
+  kinds: ('gym' | 'run')[];
+  onBack: () => void;
+  onAdd: () => void;
+}) {
+  const { f, saveMeal } = api;
+  const day = dayTypeOf(days, kinds, now);
+  const goal = targetFor(f.targets, weightKg, day);
+  const eaten = totalsOf(f, now);
+  const slots = slotsFor(f.fast.enabled);
+  const next = nextMealBudget(goal.kcal, goal.protein, eaten, slots.length);
+  const picks = suggestMeals(f.saved, next.kcal);
+  const week = weekPlan(f, weightKg, days, kinds, now);
+  const perDay = week.openCount > 0 ? Math.round((week.openTarget - Math.max(0, eaten.kcal)) / week.openCount / 10) * 10 : 0;
+
+  const log = (s: Saved) => saveMeal({ id: `m${Date.now()}`, t: Date.now(), name: s.name, kcal: s.kcal, protein: s.protein }, false);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <ScrollView contentContainerStyle={{ ...page, gap: 16 }}>
+        <View>
+          <Pressable accessibilityRole="button" onPress={onBack} style={{ minHeight: 48, justifyContent: 'center' }}>
+            <T size={16} weight="semibold" tint={color.text2}>
+              ‹ Food
+            </T>
+          </Pressable>
+          <Hero size={34} tint={color.text}>
+            Meal plan
+          </Hero>
+        </View>
+
+        <Card bg={color.yellow} pad={20} radius={28} style={{ gap: 6 }}>
+          <T size={14} weight="bold" tint={color.inkSoft}>
+            {next.leftKcal <= 0 ? 'Target reached for today' : 'Next meal, about'}
+          </T>
+          <Hero size={52} tint={color.ink} fit>
+            {next.leftKcal <= 0 ? `${-next.leftKcal} over` : `${next.kcal} kcal`}
+          </Hero>
+          <T size={15} weight="semibold" tint={color.inkSoft}>
+            {next.leftKcal <= 0
+              ? 'Nothing more is needed unless you are still hungry. Tomorrow starts fresh.'
+              : `${next.leftKcal} kcal left today across about ${next.slotsLeft} ${next.slotsLeft === 1 ? 'meal' : 'meals'}${next.protein != null ? `, around ${next.protein} g protein each` : ''}.`}
+          </T>
+        </Card>
+
+        {next.leftKcal > 0 ? (
+          <View style={{ gap: 8 }}>
+            <T size={14} weight="semibold" tint={color.text2}>
+              From your saved meals
+            </T>
+            {picks.length ? (
+              <Card pad={8}>
+                {picks.map((s, i) => (
+                  <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line, paddingHorizontal: 12 }}>
+                    <View style={{ flex: 1, minHeight: 64, justifyContent: 'center' }}>
+                      <T size={16} weight="semibold">
+                        {s.name}
+                      </T>
+                      <T size={13} tint={color.text2}>{`${s.kcal} kcal${s.protein != null ? `, ${s.protein} g protein` : ''}`}</T>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Log ${s.name}`}
+                      onPress={() => log(s)}
+                      style={({ pressed }) => ({ minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: color.yellow, alignItems: 'center', justifyContent: 'center', transform: [{ scale: pressed ? 0.97 : 1 }] })}
+                    >
+                      <T size={15} weight="bold" tint={color.ink}>
+                        Log
+                      </T>
+                    </Pressable>
+                  </View>
+                ))}
+              </Card>
+            ) : (
+              <Card pad={16} style={{ gap: 8 }}>
+                <T size={14} tint={color.text2}>
+                  {f.saved.length ? 'None of your saved meals fit this size.' : 'No saved meals yet. When you add a meal, switch on "Save to your meals" and it shows up here.'}
+                </T>
+                <LinkButton label="Add a meal" onPress={onAdd} />
+              </Card>
+            )}
+          </View>
+        ) : null}
+
+        <View style={{ gap: 8 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            {`How today splits, ${goal.kcal} kcal`}
+          </T>
+          <Card pad={8}>
+            {slots.map((s, i) => (
+              <View key={s.name} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 48, paddingHorizontal: 12, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line }}>
+                <T size={16} weight="semibold">
+                  {s.name}
+                </T>
+                <T size={15} tint={color.text2}>
+                  {`${Math.round((goal.kcal * s.share) / 10) * 10} kcal${goal.protein != null ? `, ${Math.round(goal.protein * s.share)} g` : ''}`}
+                </T>
+              </View>
+            ))}
+          </Card>
+          <T size={13} tint={color.text2}>
+            {f.fast.enabled ? 'Two meals and a snack fit your eating window.' : 'A simple split. Eat in whatever order suits you.'}
+          </T>
+        </View>
+
+        <View style={{ gap: 8 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            This week
+          </T>
+          <Card pad={8}>
+            {week.days.map((d, i) => {
+              const dt = new Date(d.t);
+              const over = d.eaten > d.target;
+              return (
+                <View key={d.t} style={{ flexDirection: 'row', alignItems: 'center', minHeight: 52, paddingHorizontal: 12, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line }}>
+                  <View style={{ width: 64 }}>
+                    <T size={16} weight={d.when === 'today' ? 'bold' : 'semibold'} tint={d.when === 'today' ? color.yellow : color.text}>
+                      {SHORT[dt.getDay()]}
+                    </T>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <T size={14} tint={color.text2}>
+                      {DAY_NAME[d.type]}
+                    </T>
+                  </View>
+                  <T size={15} weight="semibold" tint={d.when === 'ahead' ? color.text2 : over ? color.yellow : color.text}>
+                    {d.when === 'ahead' ? `${d.target}` : `${d.eaten} / ${d.target}`}
+                  </T>
+                </View>
+              );
+            })}
+          </Card>
+          <Card pad={16} style={{ gap: 4 }}>
+            <T size={15} weight="bold">
+              {`${week.eatenSoFar} of ${week.budget} kcal this week`}
+            </T>
+            <T size={14} tint={color.text2}>
+              {week.openCount > 0
+                ? `About ${Math.max(0, perDay)} kcal a day for the ${week.openCount} ${week.openCount === 1 ? 'day' : 'days'} still open, counting today. Earlier days are not made up. A day is a fresh start.`
+                : 'That is the whole week.'}
+            </T>
+          </Card>
+        </View>
+
+        <T size={13} tint={color.text2}>
+          Estimates only. The plan never tells you to eat less than your own target.
+        </T>
       </ScrollView>
     </View>
   );
