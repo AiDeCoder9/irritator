@@ -1,5 +1,7 @@
 import Storage from 'expo-sqlite/kv-store';
 
+import type { DayEntry } from './progressCore';
+
 export type Gym = { id: string; label: string; lat: number; lng: number; travelMin: number };
 export type Home = { lat: number; lng: number; label: string };
 
@@ -30,6 +32,9 @@ export type State = {
   /** Off = "I'm at the gym" works anywhere. For testing at home. */
   verifyLocation: boolean;
   onboarded: boolean;
+  /** One entry per gym day: went or skipped. Starts empty; earlier days are not tracked. */
+  history: DayEntry[];
+  bestStreak: number;
 };
 
 export const defaults: State = {
@@ -49,6 +54,8 @@ export const defaults: State = {
   gymRadius: 100,
   verifyLocation: true,
   onboarded: false,
+  history: [],
+  bestStreak: 4,
 };
 
 const KEY = 'irritator.state.v1';

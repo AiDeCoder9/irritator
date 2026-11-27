@@ -11,6 +11,7 @@ import notifee, {
 
 import { levelAt, messageFor, MESSAGE_EVERY_MIN } from './motivation';
 import { nextOccurrence } from './phase';
+import { addEntry } from './progressCore';
 import type { State } from './store';
 import { TAKEOVER_AFTER_MIN } from './theme';
 
@@ -219,14 +220,21 @@ export async function cancelNags() {
 export async function checkIn(s: State): Promise<Partial<State>> {
   await cancelNags();
   const next = await scheduleAlarm(s);
-  return { ...next, checkedInAt: Date.now(), streak: s.streak + 1 };
+  const streak = s.streak + 1;
+  return {
+    ...next,
+    checkedInAt: Date.now(),
+    streak,
+    bestStreak: Math.max(s.bestStreak, streak),
+    history: addEntry(s.history, s.alarmAt ?? Date.now(), 'done'),
+  };
 }
 
 /** Skipping (or missing the day) resets the streak and sets up the next alarm. */
 export async function skipToday(s: State): Promise<Partial<State>> {
   await cancelNags();
   const next = await scheduleAlarm(s);
-  return { ...next, streak: 0 };
+  return { ...next, streak: 0, history: addEntry(s.history, s.alarmAt ?? Date.now(), 'skipped') };
 }
 
 /** Hides the cleared screen. The next alarm is already scheduled. */

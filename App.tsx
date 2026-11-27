@@ -39,9 +39,10 @@ import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
 import { rescheduleWater } from './src/water';
+import { ProgressScreen } from './src/progressScreen';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'water' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -138,7 +139,7 @@ export default function App() {
   // Yellow screens need dark status bar icons. Everything else is black.
   const yellowScreen = !skipping && ['countdown', 'late', 'onway'].includes(phase);
   const idle = phase === 'idle' || phase === 'waiting';
-  const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings' || route === 'water');
+  const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings' || route === 'water' || route === 'progress');
   const go = (r: Route, back: Route) => {
     setFrom(back);
     setRoute(r);
@@ -292,6 +293,8 @@ export default function App() {
           onSetup={() => setSetup(true)}
           onBattery={() => run(async () => openBatterySettings())}
         />
+      ) : route === 'progress' ? (
+        <ProgressScreen s={state} water={water.w} now={now} />
       ) : route === 'water' ? (
         <WaterScreen api={water} now={now} onSettings={() => setRoute('waterSettings')} />
       ) : route === 'waterSettings' ? (
@@ -319,7 +322,7 @@ export default function App() {
       <View style={{ flex: 1 }}>
         <FadeIn key={`${phase}-${skipping}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
       </View>
-      {showTabs ? <TabBar active={route as 'today' | 'water' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
+      {showTabs ? <TabBar active={route as 'today' | 'water' | 'progress' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
       {error || notice ? (
         <Pressable
           accessibilityRole="button"

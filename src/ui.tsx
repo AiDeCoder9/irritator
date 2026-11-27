@@ -346,11 +346,12 @@ export function Steps({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: 
 }
 
 /** Floating pill navigation. */
-type Tab = 'today' | 'water' | 'settings';
+type Tab = 'today' | 'water' | 'progress' | 'settings';
 export function TabBar({ active, onTab }: { active: Tab; onTab: (t: Tab) => void }) {
   const items: { id: Tab; label: string }[] = [
     { id: 'today', label: 'Today' },
     { id: 'water', label: 'Water' },
+    { id: 'progress', label: 'Progress' },
     { id: 'settings', label: 'Settings' },
   ];
   return (
