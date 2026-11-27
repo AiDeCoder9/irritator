@@ -48,7 +48,7 @@ import { findRecentRun, runSummary } from './src/health';
 import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
-import { bumpsFor, goalOf, setWeight } from './src/waterCore';
+import { bumpsFor, goalOf, mlText, setWeight, totalOf } from './src/waterCore';
 import { ymd } from './src/progressCore';
 import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
@@ -439,6 +439,8 @@ export default function App() {
           food={{ eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
           onFood={() => setRoute('food')}
           sleepText={sleepLine(state, now)}
+          water={{ text: `${mlText(totalOf(water.w, now))} of ${mlText(goalOf(water.w, now))}` }}
+          onWater={() => setRoute('water')}
         />
       );
   }
@@ -460,7 +462,7 @@ export default function App() {
       <View style={{ flex: 1 }}>
         <FadeIn key={`${phase}-${skipping}-${excusing}-${runDone}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
       </View>
-      {showTabs ? <TabBar active={route as 'today' | 'food' | 'water' | 'progress' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
+      {showTabs ? <TabBar active={route === 'food' || route === 'water' ? 'today' : (route as 'today' | 'progress' | 'settings')} onTab={(r) => setRoute(r)} /> : null}
       {error || notice ? (
         <Pressable
           accessibilityRole="button"

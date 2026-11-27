@@ -36,6 +36,7 @@ import {
   updateFood,
 } from './food';
 import { time12, timeText } from './phase';
+import { dishesAsSaved, findDishes, scaleDish, type Dish } from './localFoods';
 import { useTimePicker } from './timePicker';
 import { color, font } from './theme';
 import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, Stepper, T, Toggle, topInset } from './ui';
@@ -281,6 +282,20 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
   const [picked, setPicked] = useState<Hit | null>(null);
   const [grams, setGrams] = useState('100');
 
+  // Common local dishes (built in, works offline)
+  const [dishQuery, setDishQuery] = useState('');
+  const [dish, setDish] = useState<Dish | null>(null);
+  const [times, setTimes] = useState(1);
+  const useDish = (d: Dish, x: number) => {
+    const v = scaleDish(d, x);
+    setDish(d);
+    setTimes(x);
+    setName(x === 1 ? d.name : `${d.name} (${x === 0.5 ? 'half' : `${x}×`})`);
+    setKcal(String(v.kcal));
+    setProtein(String(v.protein));
+    setProblem(null);
+  };
+
   const search = async () => {
     if (query.trim().length < 2) return setProblem('Type a food to search for, like "rice" or "pizza".');
     setBusy(true);
@@ -329,6 +344,47 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
             {initial ? 'Edit meal' : 'Add a meal'}
           </Hero>
         </View>
+
+        {!initial ? (
+          <View style={{ gap: 8 }}>
+            <T size={14} weight="semibold" tint={color.text2}>
+              Common dishes
+            </T>
+            <TextInput value={dishQuery} onChangeText={setDishQuery} placeholder="Momo, dal bhat, thukpa" placeholderTextColor={color.text2} accessibilityLabel="Search common dishes" style={input} />
+            <Card pad={8}>
+              {findDishes(dishQuery).length ? (
+                findDishes(dishQuery).map((d, i) => (
+                  <Pressable
+                    key={d.name}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Use ${d.name}`}
+                    onPress={() => useDish(d, 1)}
+                    style={({ pressed }) => ({ minHeight: 60, justifyContent: 'center', paddingHorizontal: 12, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line, opacity: pressed ? 0.6 : 1 })}
+                  >
+                    <T size={16} weight={dish?.name === d.name ? 'bold' : 'semibold'}>
+                      {d.name}
+                    </T>
+                    <T size={13} tint={color.text2}>{`${d.serving}: about ${d.kcal} kcal, ${d.protein} g protein`}</T>
+                  </Pressable>
+                ))
+              ) : (
+                <T size={14} tint={color.text2} style={{ padding: 12 }}>
+                  Not in the list. Type it below once and save it to your meals.
+                </T>
+              )}
+            </Card>
+            {dish ? (
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {[0.5, 1, 1.5, 2].map((x) => (
+                  <Chip key={x} label={x === 0.5 ? 'Half' : `${x}×`} a11y={`${x} servings`} on={times === x} onPress={() => useDish(dish, x)} />
+                ))}
+              </View>
+            ) : null}
+            <T size={13} tint={color.text2}>
+              Rough numbers for a typical serving. Change them below if yours is different.
+            </T>
+          </View>
+        ) : null}
 
         {!initial && f.saved.length ? (
           <View style={{ gap: 8 }}>
@@ -689,7 +745,9 @@ export function PlanScreen({
   const eaten = totalsOf(f, now);
   const slots = slotsFor(f.fast.enabled);
   const next = nextMealBudget(goal.kcal, goal.protein, eaten, slots.length);
-  const picks = suggestMeals(f.saved, next.kcal);
+  // Your own saved meals first, then common dishes to fill the list.
+  const own = suggestMeals(f.saved, next.kcal);
+  const picks = [...own, ...suggestMeals(dishesAsSaved(f.saved), next.kcal, 3 - own.length)].slice(0, 3);
   const week = weekPlan(f, weightKg, days, kinds, now);
   const perDay = week.openCount > 0 ? Math.round((week.openTarget - Math.max(0, eaten.kcal)) / week.openCount / 10) * 10 : 0;
 
@@ -726,7 +784,7 @@ export function PlanScreen({
         {next.leftKcal > 0 ? (
           <View style={{ gap: 8 }}>
             <T size={14} weight="semibold" tint={color.text2}>
-              From your saved meals
+              Ideas for this meal
             </T>
             {picks.length ? (
               <Card pad={8}>
@@ -754,7 +812,7 @@ export function PlanScreen({
             ) : (
               <Card pad={16} style={{ gap: 8 }}>
                 <T size={14} tint={color.text2}>
-                  {f.saved.length ? 'None of your saved meals fit this size.' : 'No saved meals yet. When you add a meal, switch on "Save to your meals" and it shows up here.'}
+                  None of your meals or common dishes fit this size.
                 </T>
                 <LinkButton label="Add a meal" onPress={onAdd} />
               </Card>
