@@ -12,6 +12,7 @@ import {
   planReminders,
   rescheduleWater,
   setWeight,
+  testWaterReminder,
   suggestedGoal,
   todaysDrinks,
   totalOf,
@@ -123,6 +124,7 @@ export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: numb
         ) : null}
 
         <View style={{ flex: 1, minHeight: 4 }} />
+        <LinkButton label="Test a reminder in 10 seconds" onPress={() => testWaterReminder().catch(() => {})} />
         <LinkButton label="Water settings" onPress={onSettings} />
       </ScrollView>
     </View>

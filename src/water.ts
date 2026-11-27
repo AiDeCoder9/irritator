@@ -1,4 +1,4 @@
-import notifee, { AndroidImportance, AndroidVisibility, TriggerType } from 'react-native-notify-kit';
+import notifee, { AlarmType, AndroidImportance, AndroidVisibility, TriggerType } from 'react-native-notify-kit';
 import Storage from 'expo-sqlite/kv-store';
 
 import { goalOf, MAX_IDS, mlText, planReminders, todaysDrinks, totalOf, Water, waterDefaults } from './waterCore';
@@ -88,9 +88,32 @@ export async function rescheduleWater(): Promise<void> {
           ],
         },
       },
-      { type: TriggerType.TIMESTAMP, timestamp: plan[i] },
+      // Without alarmManager the library uses a background job that Android delays or skips. The alarm manager fires on time.
+      { type: TriggerType.TIMESTAMP, timestamp: plan[i], alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
     );
   }
+}
+
+/** A water reminder in 10 seconds, to try the buttons. Close the app to test with it closed. */
+export async function testWaterReminder(): Promise<void> {
+  await ensureChannel();
+  const w = loadWater();
+  await notifee.createTriggerNotification(
+    {
+      id: 'water-test',
+      title: 'Drink water (test)',
+      body: `${mlText(totalOf(w))} of ${mlText(goalOf(w))} so far.`,
+      android: {
+        channelId: CHANNEL,
+        pressAction: { id: 'default' },
+        actions: [
+          { title: `Drank ${mlText(w.sizeMl)}`, pressAction: { id: 'water-drank' } },
+          { title: 'Half', pressAction: { id: 'water-half' } },
+        ],
+      },
+    },
+    { type: TriggerType.TIMESTAMP, timestamp: Date.now() + 10_000, alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
+  );
 }
 
 /** Notification button pressed. Works with the app closed. Returns true if it was a water action. */

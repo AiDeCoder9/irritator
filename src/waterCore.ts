@@ -74,49 +74,42 @@ export const mlText = (ml: number) => (ml >= 1000 ? `${+(ml / 1000).toFixed(2)} 
 
 /* ---------- reminder plan (pure) ---------- */
 
-/** Moves a time into the reminder window: before the window goes to its start, after it to the next day's start. */
-function intoWindow(ts: number, startHour: number, endHour: number): number {
-  const d = new Date(ts);
-  const open = new Date(ts);
-  open.setHours(startHour, 0, 0, 0);
-  const close = new Date(ts);
-  close.setHours(endHour, 0, 0, 0);
-  if (ts < open.getTime()) return open.getTime();
-  if (ts > close.getTime()) {
-    open.setDate(open.getDate() + 1);
-    return open.getTime();
-  }
-  void d;
-  return ts;
-}
+const at = (day: Date, hour: number) => {
+  const d = new Date(day);
+  d.setHours(hour, 0, 0, 0);
+  return d.getTime();
+};
 
-/** When the next reminders should fire. Stops for today once the goal is reached. */
+/**
+ * When the next reminders should fire. The times sit on a fixed grid, so opening the app or planning again never moves them:
+ * - With no drink today the grid starts at the first reminder time (default 8 AM) and steps by the interval.
+ * - After a drink, the grid restarts from that drink: the next reminder is one interval later.
+ * - Stops for today once the goal is reached. Tomorrow starts again at the first reminder time.
+ */
 export function planReminders(w: Water, now = Date.now(), maxIds = MAX_IDS): number[] {
   if (!w.enabled) return [];
+  const step = w.intervalMin * MIN;
   const today = todaysDrinks(w, now);
-  const last = today.length ? today[today.length - 1].t : now;
-  let from = Math.max(now + MIN, last + w.intervalMin * MIN);
-  if (totalOf(w, now) >= goalOf(w)) {
-    // Done for today: first reminder tomorrow at the start of the window.
-    const t = new Date(now);
-    t.setDate(t.getDate() + 1);
-    t.setHours(w.startHour, 0, 0, 0);
-    from = t.getTime();
-  }
+  const lastToday = today.length ? today[today.length - 1].t : null;
+  const done = totalOf(w, now) >= goalOf(w);
+
   const out: number[] = [];
-  let t = intoWindow(from, w.startHour, w.endHour);
-  while (out.length < maxIds) {
-    out.push(t);
-    if (w.repeat) {
-      for (let i = 1; i <= REPEAT_TIMES && out.length < maxIds; i++) {
-        const r = t + i * REPEAT_EVERY_MIN * MIN;
-        const close = new Date(t);
-        close.setHours(w.endHour, 0, 0, 0);
-        if (r <= close.getTime()) out.push(r);
+  for (let offset = done ? 1 : 0; offset < 4 && out.length < maxIds; offset++) {
+    const day = new Date(now);
+    day.setDate(day.getDate() + offset);
+    const open = at(day, w.startHour);
+    const close = at(day, w.endHour);
+    let t = offset === 0 && lastToday != null ? lastToday + step : open;
+    for (; t <= close && out.length < maxIds; t += step) {
+      if (t <= now + 30_000) continue;
+      out.push(t);
+      if (w.repeat) {
+        for (let i = 1; i <= REPEAT_TIMES && out.length < maxIds; i++) {
+          const r = t + i * REPEAT_EVERY_MIN * MIN;
+          if (r <= close) out.push(r);
+        }
       }
     }
-    t = intoWindow(t + w.intervalMin * MIN, w.startHour, w.endHour);
   }
   return out;
 }
-
