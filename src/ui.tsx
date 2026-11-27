@@ -346,10 +346,11 @@ export function Steps({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: 
 }
 
 /** Floating pill navigation. */
-type Tab = 'today' | 'water' | 'progress' | 'settings';
+type Tab = 'today' | 'food' | 'water' | 'progress' | 'settings';
 export function TabBar({ active, onTab }: { active: Tab; onTab: (t: Tab) => void }) {
   const items: { id: Tab; label: string }[] = [
     { id: 'today', label: 'Today' },
+    { id: 'food', label: 'Food' },
     { id: 'water', label: 'Water' },
     { id: 'progress', label: 'Progress' },
     { id: 'settings', label: 'Settings' },
@@ -375,7 +376,7 @@ export function TabBar({ active, onTab }: { active: Tab; onTab: (t: Tab) => void
                 transform: [{ scale: pressed ? 0.97 : 1 }],
               })}
             >
-              <Text style={{ fontFamily: font.bold, fontSize: 15, color: on ? color.ink : color.text2 }}>{it.label}</Text>
+              <Text style={{ fontFamily: font.bold, fontSize: 13, color: on ? color.ink : color.text2 }}>{it.label}</Text>
             </Pressable>
           );
         })}

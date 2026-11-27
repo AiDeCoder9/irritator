@@ -42,11 +42,13 @@ import {
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
+import { AddMealScreen, FastingScreen, FoodScreen, useFood } from './src/foodScreens';
+import type { Meal } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
 import { bumpsFor } from './src/waterCore';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'water' | 'progress' | 'waterSettings' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -76,6 +78,8 @@ export default function App() {
   const checking = useRef(false);
   const now = useNow(1000);
   const water = useWater();
+  const food = useFood();
+  const [editMeal, setEditMeal] = useState<Meal | null>(null);
   const missing = useRef(false);
 
   useEffect(() => {
@@ -154,7 +158,7 @@ export default function App() {
   // Yellow screens need dark status bar icons. Everything else is black.
   const yellowScreen = !skipping && !excusing && !runDone && ['countdown', 'late', 'onway'].includes(phase);
   const idle = phase === 'idle' || phase === 'waiting';
-  const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings' || route === 'water' || route === 'progress');
+  const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings' || route === 'water' || route === 'progress' || route === 'food');
   const go = (r: Route, back: Route) => {
     setFrom(back);
     setRoute(r);
@@ -327,6 +331,24 @@ export default function App() {
           onSetup={() => setSetup(true)}
           onBattery={() => run(async () => openBatterySettings())}
         />
+      ) : route === 'food' ? (
+        <FoodScreen
+          api={food}
+          now={now}
+          onAdd={() => {
+            setEditMeal(null);
+            setRoute('addMeal');
+          }}
+          onEdit={(m) => {
+            setEditMeal(m);
+            setRoute('addMeal');
+          }}
+          onFasting={() => setRoute('fasting')}
+        />
+      ) : route === 'addMeal' ? (
+        <AddMealScreen key={editMeal?.id ?? 'new'} api={food} initial={editMeal} onDone={() => setRoute('food')} />
+      ) : route === 'fasting' ? (
+        <FastingScreen api={food} onBack={() => setRoute('food')} />
       ) : route === 'progress' ? (
         <ProgressScreen s={state} water={water.w} now={now} />
       ) : route === 'water' ? (
@@ -360,7 +382,7 @@ export default function App() {
       <View style={{ flex: 1 }}>
         <FadeIn key={`${phase}-${skipping}-${excusing}-${runDone}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
       </View>
-      {showTabs ? <TabBar active={route as 'today' | 'water' | 'progress' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
+      {showTabs ? <TabBar active={route as 'today' | 'food' | 'water' | 'progress' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
       {error || notice ? (
         <Pressable
           accessibilityRole="button"
