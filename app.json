@@ -37,6 +37,20 @@
         }
       ],
       "./plugins/withLockScreen"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7540cf6c-08cf-4688-92ce-fe09f54bb5a5",
+      "requestHeaders": {
+        "expo-channel-name": "main"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7540cf6c-08cf-4688-92ce-fe09f54bb5a5"
+      }
+    }
   }
 }

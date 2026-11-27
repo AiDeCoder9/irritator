@@ -21,6 +21,7 @@ jobs:
       MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
       MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
       MAIL_TO: ${{ secrets.MAIL_TO }}
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +42,15 @@ jobs:
 
       - name: Type-check
         run: npx tsc --noEmit
+
+      # Over-the-air update: JavaScript-only changes reach installed apps without a new APK.
+      # Needs the EXPO_TOKEN secret. A failure here never fails the APK build.
+      - name: Publish over-the-air update
+        if: ${{ env.EXPO_TOKEN != '' }}
+        continue-on-error: true
+        run: |
+          npx eas-cli@latest channel:create main --non-interactive || true
+          npx eas-cli@latest update --channel main --message "build ${{ github.run_number }}" --non-interactive
 
       - name: Generate the Android project
         run: npx expo prebuild --platform android --no-install
