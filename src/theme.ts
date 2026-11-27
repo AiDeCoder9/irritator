@@ -1,16 +1,24 @@
 export const color = {
-  concrete: '#D8D6D0',
-  graphite: '#20232A',
-  iron: '#4F5560',
-  track: '#BEBBB3',
-  amber: '#F2B33D',
-  cleared: '#14694A',
-  white: '#FFFFFF',
-  mist: '#C9CBD1',
+  black: '#0A0A0B',
+  surface: '#141416',
+  surface2: '#1F1F23',
+  line: '#2C2C31',
+  text: '#F5F5F2',
+  text2: '#A4A4AD',
+  yellow: '#FFD60A',
+  /** Text and icons on yellow. */
+  ink: '#14120A',
+  /** Secondary text on yellow. */
+  inkSoft: '#4A3F00',
+  /** A step darker than yellow, for unselected pills on yellow. */
+  yellowDeep: '#E8BE00',
+  water: '#4CC3E0',
+  ok: '#34D399',
+  okBg: '#0F2E24',
 };
 
 export const font = {
-  display: 'BigShouldersDisplay_900Black',
+  display: 'Sora_800ExtraBold',
   body: 'HankenGrotesk_500Medium',
   semibold: 'HankenGrotesk_600SemiBold',
   bold: 'HankenGrotesk_700Bold',

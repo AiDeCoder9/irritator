@@ -4,7 +4,7 @@ import { Pressable, TextInput, View } from 'react-native';
 import { currentPlace, findAddress } from './gym';
 import type { Gym, Home, State } from './store';
 import { color, font } from './theme';
-import { Button, Chip, FadeIn, T } from './ui';
+import { Button, Card, Chip, FadeIn, T } from './ui';
 
 type Props = { s: State; onChange: (p: Partial<State>) => void };
 
@@ -58,33 +58,39 @@ export function Places({ s, onChange }: Props) {
 
   return (
     <View style={{ gap: 18 }}>
-      <View>
-        <T size={15} weight="semibold" tint={color.iron}>
+      <View style={{ gap: 8 }}>
+        <T size={14} weight="semibold" tint={color.text2}>
           Home
         </T>
-        <Row
-          title={s.home ? s.home.label : 'Not set'}
-          sub={s.home ? 'Used to see you leave.' : 'Optional. Lets the app see you leave.'}
-          action={s.home ? 'Change' : 'Set'}
-          onPress={() => setEditing({ kind: 'home' })}
-        />
+        <Card pad={8}>
+          <Row
+            first
+            title={s.home ? s.home.label : 'Not set'}
+            sub={s.home ? 'Used to see you leave.' : 'Optional. Lets the app see you leave.'}
+            action={s.home ? 'Change' : 'Set'}
+            onPress={() => setEditing({ kind: 'home' })}
+          />
+        </Card>
       </View>
 
-      <View>
-        <T size={15} weight="semibold" tint={color.iron}>
+      <View style={{ gap: 8 }}>
+        <T size={14} weight="semibold" tint={color.text2}>
           Gyms
         </T>
-        {s.gyms.map((g) => (
-          <Row
-            key={g.id}
-            title={g.label}
-            sub={`${g.travelMin} min away`}
-            action="Edit"
-            onPress={() => setEditing({ kind: 'gym', gym: g })}
-            onRemove={() => remove(g)}
-          />
-        ))}
-        <Row title="Add a gym" plus onPress={() => setEditing({ kind: 'gym', gym: null })} last />
+        <Card pad={8}>
+          {s.gyms.map((g, i) => (
+            <Row
+              key={g.id}
+              first={i === 0}
+              title={g.label}
+              sub={`${g.travelMin} min away`}
+              action="Edit"
+              onPress={() => setEditing({ kind: 'gym', gym: g })}
+              onRemove={() => remove(g)}
+            />
+          ))}
+          <Row first={s.gyms.length === 0} title="Add a gym" plus onPress={() => setEditing({ kind: 'gym', gym: null })} />
+        </Card>
       </View>
 
       {undo ? (
@@ -93,16 +99,16 @@ export function Places({ s, onChange }: Props) {
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'center',
-            backgroundColor: color.graphite,
-            borderRadius: 12,
+            backgroundColor: color.surface2,
+            borderRadius: 16,
             paddingLeft: 16,
           }}
         >
-          <T size={15} tint={color.white}>
+          <T size={15} tint={color.text}>
             {undo.label} removed
           </T>
           <Pressable accessibilityRole="button" onPress={restore} style={{ minHeight: 48, paddingHorizontal: 16, justifyContent: 'center' }}>
-            <T size={15} weight="bold" tint={color.amber}>
+            <T size={15} weight="bold" tint={color.yellow}>
               Undo
             </T>
           </Pressable>
@@ -119,7 +125,7 @@ function Row({
   onPress,
   onRemove,
   plus,
-  last,
+  first,
 }: {
   title: string;
   sub?: string;
@@ -127,30 +133,30 @@ function Row({
   onPress: () => void;
   onRemove?: () => void;
   plus?: boolean;
-  last?: boolean;
+  first?: boolean;
 }) {
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        borderTopWidth: 1.5,
-        borderBottomWidth: last ? 1.5 : 0,
-        borderColor: color.graphite,
+        borderTopWidth: first ? 0 : 1,
+        borderColor: color.line,
+        paddingHorizontal: 12,
       }}
     >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={action ? `${action} ${title}` : title}
         onPress={onPress}
-        style={({ pressed }) => ({ flex: 1, minHeight: 56, justifyContent: 'center', paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}
+        style={({ pressed }) => ({ flex: 1, minHeight: 60, justifyContent: 'center', paddingVertical: 8, opacity: pressed ? 0.6 : 1 })}
       >
-        <T size={17} weight="semibold" tint={color.graphite}>
+        <T size={17} weight="semibold" tint={plus ? color.yellow : color.text}>
           {plus ? '+ ' : ''}
           {title}
         </T>
         {sub ? (
-          <T size={14} tint={color.iron}>
+          <T size={14} tint={color.text2}>
             {sub}
           </T>
         ) : null}
@@ -162,7 +168,7 @@ function Row({
           onPress={onRemove}
           style={{ minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' }}
         >
-          <T size={15} weight="semibold" tint={color.iron}>
+          <T size={15} weight="semibold" tint={color.text2}>
             Remove
           </T>
         </Pressable>
@@ -216,25 +222,24 @@ function PlaceForm({
     });
 
   const save = () => {
-    if (!pt) return setProblem(isGym ? 'Save a location first.' : 'Save a location first.');
+    if (!pt) return setProblem('Set a location first.');
     const name = label.trim() || (isGym ? 'My gym' : 'Home');
     onSave({ label: name, lat: pt.lat, lng: pt.lng, travelMin: travel });
   };
 
   const input = {
     height: 52,
-    borderWidth: 2,
-    borderColor: color.graphite,
-    borderRadius: 12,
+    backgroundColor: color.surface2,
+    borderRadius: 16,
     paddingHorizontal: 16,
     fontFamily: font.body,
     fontSize: 17,
-    color: color.graphite,
+    color: color.text,
   } as const;
 
   return (
     <View style={{ gap: 14 }}>
-      <T size={22} weight="bold" tint={color.graphite}>
+      <T size={22} weight="bold" tint={color.text}>
         {isGym ? (initial ? 'Edit gym' : 'Add a gym') : 'Your home'}
       </T>
 
@@ -242,32 +247,32 @@ function PlaceForm({
         value={label}
         onChangeText={setLabel}
         placeholder={isGym ? 'Gym name' : 'Name, for example Home'}
-        placeholderTextColor={color.iron}
+        placeholderTextColor={color.text2}
         style={input}
       />
 
-      <Button label={busy ? 'Finding you…' : 'Use my current location'} onPress={useHere} bg={color.graphite} fg={color.white} disabled={busy} />
-      <T size={15} tint={color.iron}>
+      <Button label={busy ? 'Finding you…' : 'Use my current location'} onPress={useHere} disabled={busy} />
+      <T size={15} tint={color.text2}>
         {isGym ? 'Best while you stand inside the gym.' : 'Best while you are at home.'}
       </T>
 
-      <T size={17} weight="semibold" tint={color.graphite}>
+      <T size={17} weight="semibold" tint={color.text}>
         Or type an address
       </T>
       <TextInput
         value={address}
         onChangeText={setAddress}
         placeholder="Place, area, city"
-        placeholderTextColor={color.iron}
+        placeholderTextColor={color.text2}
         returnKeyType="search"
         onSubmitEditing={search}
         style={input}
       />
-      <Button label="Find address" onPress={search} outline={color.graphite} fg={color.graphite} disabled={busy} />
+      <Button label="Find address" onPress={search} bg={color.surface2} fg={color.text} disabled={busy} />
 
       {isGym ? (
         <View style={{ gap: 10 }}>
-          <T size={17} weight="semibold" tint={color.graphite}>
+          <T size={17} weight="semibold" tint={color.text}>
             Minutes to travel there
           </T>
           <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -279,19 +284,19 @@ function PlaceForm({
       ) : null}
 
       {problem ? (
-        <T size={16} weight="semibold" tint={color.graphite}>
+        <T size={16} weight="semibold" tint={color.text}>
           {problem}
         </T>
       ) : null}
       {pt ? (
-        <T size={16} weight="bold" tint={color.cleared}>
+        <T size={16} weight="bold" tint={color.ok}>
           Location saved
         </T>
       ) : null}
 
-      <Button label="Save" onPress={save} bg={color.graphite} fg={color.white} />
+      <Button label="Save" onPress={save} />
       <Pressable accessibilityRole="button" onPress={onCancel} style={{ minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
-        <T size={16} weight="semibold" tint={color.iron} style={{ textDecorationLine: 'underline' }}>
+        <T size={16} weight="semibold" tint={color.text2}>
           Cancel
         </T>
       </Pressable>

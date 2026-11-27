@@ -1,13 +1,13 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { hasGym } from './gym';
 import { Places } from './places';
 import { DAY_NAMES, time12 } from './phase';
+import { pickTime } from './screens';
 import type { State } from './store';
 import { color, font } from './theme';
-import { Button, Chip, Hero, T, topInset } from './ui';
+import { Button, Card, Chip, Hero, T, topInset } from './ui';
 
 type Props = {
   s: State;
@@ -38,19 +38,6 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
     }
   };
 
-  const pickTime = () => {
-    const d = new Date();
-    d.setHours(s.alarmHour, s.alarmMinute, 0, 0);
-    DateTimePickerAndroid.open({
-      value: d,
-      mode: 'time',
-      is24Hour: false,
-      onChange: (e, picked) => {
-        if (e.type === 'set' && picked) onChange({ alarmHour: picked.getHours(), alarmMinute: picked.getMinutes() });
-      },
-    });
-  };
-
   const toggleDay = (d: number) => {
     if (s.days[d] && s.days.filter(Boolean).length === 1) return;
     const next = [...s.days];
@@ -59,27 +46,27 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: color.concrete }}>
+    <View style={{ flex: 1, backgroundColor: color.black }}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: topInset, paddingHorizontal: 28, paddingBottom: 32, gap: 24, flexGrow: 1 }}
+        contentContainerStyle={{ paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 32, gap: 24, flexGrow: 1 }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ gap: 4 }}>
-          <T size={16} weight="semibold" tint={color.iron}>
+          <T size={16} weight="semibold" tint={color.text2}>
             Step {step} of 3
           </T>
-          <Hero size={56} tint={color.graphite}>
+          <Hero size={40} tint={color.text}>
             {step === 1 ? 'Where do you start and go?' : step === 2 ? 'When do you go?' : 'Allow three things'}
           </Hero>
         </View>
 
         {step === 1 && (
           <>
-            <T size={17} tint={color.graphite}>
+            <T size={17} tint={color.text}>
               Add the gyms you go to. When you tap "I'm at the gym", the app checks you are at one of them.
             </T>
             <Places s={s} onChange={onChange} />
-            <T size={17} weight="semibold" tint={color.graphite}>
+            <T size={17} weight="semibold" tint={color.text}>
               How close counts as "at the gym"?
             </T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -95,17 +82,19 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
-              onPress={pickTime}
-              style={({ pressed }) => ({ gap: 4, transform: [{ scale: pressed ? 0.98 : 1 }] })}
+              onPress={() => pickTime(s, onChange)}
+              style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
             >
-              <Hero size={104} tint={color.graphite}>
-                {time12(s.alarmHour, s.alarmMinute)}
-              </Hero>
-              <T size={16} tint={color.iron}>
-                Tap the time to change it
-              </T>
+              <Card pad={22} radius={28} style={{ gap: 4 }}>
+                <Hero size={72} tint={color.text} fit>
+                  {time12(s.alarmHour, s.alarmMinute)}
+                </Hero>
+                <T size={15} tint={color.text2}>
+                  Tap the time to change it
+                </T>
+              </Card>
             </Pressable>
-            <T size={17} weight="semibold" tint={color.graphite}>
+            <T size={17} weight="semibold" tint={color.text}>
               Gym days
             </T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -119,7 +108,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
                 />
               ))}
             </View>
-            <T size={17} weight="semibold" tint={color.graphite}>
+            <T size={17} weight="semibold" tint={color.text}>
               Minutes to get out the door
             </T>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -138,33 +127,31 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
 
         {step === 3 && (
           <>
-            <T size={17} tint={color.graphite}>
+            <T size={17} tint={color.text}>
               Without these the alarm can stay silent.
             </T>
             <Button
               label="Allow notifications and alarms"
               onPress={() => attempt(async () => setPerm(await onPermissions()))}
-              bg={color.graphite}
-              fg={color.white}
               disabled={busy}
             />
             {perm?.length === 0 ? (
-              <T size={16} weight="bold" tint={color.cleared}>
+              <T size={16} weight="bold" tint={color.ok}>
                 Done. Alarms are allowed.
               </T>
             ) : (
               perm?.map((n) => (
-                <T key={n} size={16} weight="semibold" tint={color.graphite}>
+                <T key={n} size={16} weight="semibold" tint={color.text}>
                   {n}
                 </T>
               ))
             )}
-            <Button label="Open battery settings" onPress={onBattery} outline={color.graphite} fg={color.graphite} />
-            <T size={15} tint={color.iron}>
+            <Button label="Open battery settings" onPress={onBattery} bg={color.surface2} fg={color.text} />
+            <T size={15} tint={color.text2}>
               On Samsung: Battery, Background usage limits, Never sleeping apps, add IRRITATOR.
             </T>
             {problem ? (
-              <T size={16} weight="semibold" tint={color.graphite}>
+              <T size={16} weight="semibold" tint={color.text}>
                 {problem}
               </T>
             ) : null}
@@ -178,17 +165,15 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             <Button
               label="Next"
               onPress={() => setStep(step + 1)}
-              bg={color.graphite}
-              fg={color.white}
               disabled={step === 1 && !hasGym(s)}
             />
           ) : (
-            <Button label="Finish and turn alarm on" onPress={onFinish} bg={color.graphite} fg={color.white} />
+            <Button label="Finish and turn alarm on" onPress={onFinish} />
           )}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             {step > 1 ? (
               <Pressable accessibilityRole="button" onPress={() => setStep(step - 1)} style={{ minHeight: 48, justifyContent: 'center' }}>
-                <T size={16} weight="semibold" tint={color.iron}>
+                <T size={16} weight="semibold" tint={color.text2}>
                   Back
                 </T>
               </Pressable>
@@ -196,7 +181,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
               <View />
             )}
             <Pressable accessibilityRole="button" onPress={onSkip} style={{ minHeight: 48, justifyContent: 'center' }}>
-              <T size={16} weight="semibold" tint={color.iron} style={{ textDecorationLine: 'underline' }}>
+              <T size={16} weight="semibold" tint={color.text2}>
                 Skip for now
               </T>
             </Pressable>

@@ -9,6 +9,7 @@ import {
   Text,
   TextStyle,
   View,
+  ViewStyle,
 } from 'react-native';
 
 import { color, font } from './theme';
@@ -28,25 +29,10 @@ export function Screen({ bg, children }: { bg: string; children: ReactNode }) {
   return <View style={[styles.screen, { backgroundColor: bg, paddingTop: topInset }]}>{children}</View>;
 }
 
-export function HeatBar({ level, fill, track }: { level: number; fill: string; track: string }) {
-  return (
-    <View style={styles.heat} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      {[1, 2, 3].map((n) => (
-        <View
-          key={n}
-          style={[
-            styles.seg,
-            n <= level ? { backgroundColor: fill } : { borderWidth: 2, borderColor: track },
-          ]}
-        />
-      ))}
-    </View>
-  );
-}
-
+/** Big numbers and headings. Sora, tight tracking. */
 export function Hero({
   children,
-  size = 184,
+  size = 120,
   tint,
   fit,
 }: {
@@ -62,8 +48,8 @@ export function Hero({
       style={{
         fontFamily: font.display,
         fontSize: size,
-        lineHeight: size * 0.9,
-        letterSpacing: -2,
+        lineHeight: size * 1.08,
+        letterSpacing: -size * 0.035,
         color: tint,
         fontVariant: ['tabular-nums'],
       }}
@@ -75,15 +61,15 @@ export function Hero({
 
 export function T({
   children,
-  size = 17,
+  size = 16,
   weight = 'body',
-  tint,
+  tint = color.text,
   style,
 }: {
   children: ReactNode;
   size?: number;
   weight?: 'body' | 'semibold' | 'bold';
-  tint: string;
+  tint?: string;
   style?: TextStyle;
 }) {
   return (
@@ -93,20 +79,79 @@ export function T({
   );
 }
 
+/** A rounded surface. No borders, no shadows: depth comes from the surface color. */
+export function Card({ children, bg = color.surface, pad = 20, radius = 24, style }: { children: ReactNode; bg?: string; pad?: number; radius?: number; style?: ViewStyle }) {
+  return <View style={[{ backgroundColor: bg, borderRadius: radius, padding: pad, gap: 12 }, style]}>{children}</View>;
+}
+
+/** A row inside a Card with pad 8. Hairline above every row but the first. */
+export function Row({
+  title,
+  sub,
+  right,
+  onPress,
+  first,
+}: {
+  title: string;
+  sub?: string;
+  right?: ReactNode;
+  onPress?: () => void;
+  first?: boolean;
+}) {
+  const body = (
+    <>
+      <View style={{ flex: 1, gap: 2 }}>
+        <T size={17} weight="semibold">
+          {title}
+        </T>
+        {sub ? (
+          <T size={14} tint={color.text2}>
+            {sub}
+          </T>
+        ) : null}
+      </View>
+      {right}
+    </>
+  );
+  const style = {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    minHeight: 64,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: first ? 0 : 1,
+    borderColor: color.line,
+  };
+  return onPress ? (
+    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [style, { opacity: pressed ? 0.6 : 1 }]}>
+      {body}
+    </Pressable>
+  ) : (
+    <View style={style}>{body}</View>
+  );
+}
+
+export const Chevron = () => (
+  <T size={22} weight="bold" tint={color.text2}>
+    ›
+  </T>
+);
+
 export function Button({
   label,
   onPress,
-  bg,
-  fg,
-  outline,
+  bg = color.yellow,
+  fg = color.ink,
   disabled,
+  height = 60,
 }: {
   label: string;
   onPress: () => void;
   bg?: string;
-  fg: string;
-  outline?: string;
+  fg?: string;
   disabled?: boolean;
+  height?: number;
 }) {
   return (
     <Pressable
@@ -114,17 +159,98 @@ export function Button({
       disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.btn,
-        {
-          backgroundColor: bg ?? 'transparent',
-          borderWidth: outline ? 2 : 0,
-          borderColor: outline,
-          opacity: disabled ? 0.55 : 1,
-          transform: [{ scale: pressed ? 0.97 : 1 }],
-        },
+        { height, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: bg },
+        { opacity: disabled ? 0.55 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] },
       ]}
     >
-      <Text style={{ fontFamily: font.bold, fontSize: 20, color: fg }}>{label}</Text>
+      <Text style={{ fontFamily: font.bold, fontSize: 18, color: fg }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Quiet text button. */
+export function LinkButton({ label, onPress, tint = color.text2 }: { label: string; onPress: () => void; tint?: string }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => ({ minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+    >
+      <Text style={{ fontFamily: font.semibold, fontSize: 15, color: tint }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** One-tap choice pill. On a yellow screen pass tone="yellow". */
+export function Chip({
+  label,
+  on,
+  onPress,
+  a11y,
+  disabled,
+  tone = 'dark',
+}: {
+  label: string;
+  on: boolean;
+  onPress: () => void;
+  a11y?: string;
+  disabled?: boolean;
+  tone?: 'dark' | 'yellow';
+}) {
+  const yellow = tone === 'yellow';
+  const bg = on ? (yellow ? color.ink : color.yellow) : yellow ? color.yellowDeep : color.surface2;
+  const fg = on ? (yellow ? color.yellow : color.ink) : yellow ? color.ink : color.text;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={a11y ?? label}
+      accessibilityState={{ selected: on }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        height: 48,
+        borderRadius: 999,
+        backgroundColor: bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: [{ scale: pressed ? 0.97 : 1 }],
+      })}
+    >
+      <Text numberOfLines={1} style={{ fontFamily: font.semibold, fontSize: 15, color: fg, paddingHorizontal: 6 }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function Toggle({ on, onPress, label, tone = 'dark' }: { on: boolean; onPress: () => void; label: string; tone?: 'dark' | 'yellow' }) {
+  const yellow = tone === 'yellow';
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      onPress={onPress}
+      hitSlop={8}
+      style={{
+        width: 56,
+        height: 32,
+        borderRadius: 16,
+        padding: 3,
+        justifyContent: 'center',
+        alignItems: on ? 'flex-end' : 'flex-start',
+        backgroundColor: on ? (yellow ? color.ink : color.yellow) : yellow ? color.yellowDeep : color.surface2,
+      }}
+    >
+      <View
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 13,
+          backgroundColor: on ? (yellow ? color.yellow : color.ink) : yellow ? color.ink : color.text2,
+        }}
+      />
     </Pressable>
   );
 }
@@ -144,95 +270,114 @@ export function Stepper({
   atMin?: boolean;
   atMax?: boolean;
 }) {
+  const btn = (sign: string, a11y: string, off: boolean | undefined, onPress: () => void) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={a11y}
+      disabled={off}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: color.surface2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: off ? 0.4 : 1,
+        transform: [{ scale: pressed ? 0.95 : 1 }],
+      })}
+    >
+      <Text style={{ fontFamily: font.bold, fontSize: 24, color: color.text }}>{sign}</Text>
+    </Pressable>
+  );
   return (
-    <View style={styles.stepRow}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Decrease ${label}`}
-        disabled={atMin}
-        onPress={onDec}
-        style={[styles.step, atMin && styles.stepOff]}
-      >
-        <Text style={[styles.stepText, atMin && { color: '#6B6F78' }]}>−</Text>
-      </Pressable>
-      <View style={{ alignItems: 'center', flex: 1 }}>
-        <Text style={{ fontFamily: font.display, fontSize: 56, lineHeight: 56, color: color.graphite }}>{value}</Text>
-        <T size={15} weight="semibold" tint={color.iron}>
-          {label}
-        </T>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Increase ${label}`}
-        disabled={atMax}
-        onPress={onInc}
-        style={[styles.step, atMax && styles.stepOff]}
-      >
-        <Text style={[styles.stepText, atMax && { color: '#6B6F78' }]}>+</Text>
-      </Pressable>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      {btn('−', `Decrease ${label}`, atMin, onDec)}
+      <Text style={{ fontFamily: font.display, fontSize: 22, color: color.text, minWidth: 36, textAlign: 'center' }}>{value}</Text>
+      {btn('+', `Increase ${label}`, atMax, onInc)}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, paddingHorizontal: 28, paddingBottom: 36, justifyContent: 'space-between' },
-  heat: { flexDirection: 'row', gap: 6 },
-  seg: { flex: 1, height: 8, borderRadius: 4 },
-  btn: { height: 64, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  step: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: color.graphite,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepOff: { borderColor: '#8D8F95' },
-  stepText: { fontFamily: font.semibold, fontSize: 30, lineHeight: 34, color: color.graphite },
-});
-
-/** One-tap choice button. Big enough to hit with a thumb. */
-export function Chip({
-  label,
-  on,
-  onPress,
-  a11y,
-  disabled,
-}: {
-  label: string;
-  on: boolean;
-  onPress: () => void;
-  a11y?: string;
-  disabled?: boolean;
-}) {
+/** Yellow and black caution tape. The one decorative detail in the app. */
+export function Tape({ height = 14 }: { height?: number }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a11y ?? label}
-      accessibilityState={{ selected: on }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        height: 48,
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: color.graphite,
-        backgroundColor: on ? color.graphite : 'transparent',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: [{ scale: pressed ? 0.97 : 1 }],
-      })}
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ height, borderRadius: height / 2, backgroundColor: color.black, overflow: 'hidden', flexDirection: 'row' }}
     >
-      <Text
-        numberOfLines={1}
-        style={{ fontFamily: font.semibold, fontSize: 16, color: on ? color.white : color.graphite, paddingHorizontal: 6 }}
-      >
-        {label}
-      </Text>
-    </Pressable>
+      {Array.from({ length: 40 }, (_, i) => (
+        <View key={i} style={{ width: height, height, marginRight: height, backgroundColor: color.yellow, transform: [{ skewX: '-35deg' }] }} />
+      ))}
+    </View>
+  );
+}
+
+/** Awake, left home, at the gym. For yellow screens. Without a saved home there are two stages. */
+export function Steps({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: boolean; leftAt: number | null; fmt: (ts: number) => string }) {
+  const labels = hasHome ? ['Awake', leftAt != null ? `Left ${fmt(leftAt)}` : 'Leave home', 'At the gym'] : ['Awake', 'At the gym'];
+  const done = hasHome ? (stage === 2 ? 2 : 1) : 1;
+  return (
+    <View accessible accessibilityLabel={`Progress: ${labels.slice(0, done).join(', then ')}`} style={{ flexDirection: 'row' }}>
+      {labels.map((l, i) => (
+        <View key={l} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+          <View
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: i < done ? color.ink : 'transparent',
+              borderWidth: i < done ? 0 : 2.5,
+              borderColor: color.ink,
+            }}
+          >
+            {i < done ? <Text style={{ fontFamily: font.bold, fontSize: 15, color: color.yellow }}>✓</Text> : null}
+          </View>
+          <Text numberOfLines={1} style={{ fontFamily: font.bold, fontSize: 12, color: color.ink }}>
+            {l}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Floating pill navigation. */
+export function TabBar({ active, onTab }: { active: 'today' | 'settings'; onTab: (t: 'today' | 'settings') => void }) {
+  const items: { id: 'today' | 'settings'; label: string }[] = [
+    { id: 'today', label: 'Today' },
+    { id: 'settings', label: 'Settings' },
+  ];
+  return (
+    <View style={{ paddingHorizontal: 16, paddingBottom: 18, paddingTop: 6, backgroundColor: color.black }}>
+      <View style={{ flexDirection: 'row', gap: 4, backgroundColor: color.surface, borderRadius: 999, padding: 6, borderWidth: 1, borderColor: color.line }}>
+        {items.map((it) => {
+          const on = it.id === active;
+          return (
+            <Pressable
+              key={it.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              onPress={() => onTab(it.id)}
+              style={({ pressed }) => ({
+                flex: 1,
+                height: 52,
+                borderRadius: 999,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? color.yellow : 'transparent',
+                transform: [{ scale: pressed ? 0.97 : 1 }],
+              })}
+            >
+              <Text style={{ fontFamily: font.bold, fontSize: 15, color: on ? color.ink : color.text2 }}>{it.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -271,24 +416,6 @@ export function FadeIn({ children, fill = true }: { children: ReactNode; fill?: 
   );
 }
 
-/** Awake, left home, at the gym. A segment fills as you reach each stage. Without a saved home there are two. */
-export function Rail({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: boolean; leftAt: number | null; fmt: (ts: number) => string }) {
-  const labels = hasHome ? ['Awake', leftAt != null ? `Left home ${fmt(leftAt)}` : 'Leave home', 'At the gym'] : ['Awake', 'At the gym'];
-  const filled = hasHome ? (stage === 2 ? 2 : 1) : 1;
-  return (
-    <View accessible accessibilityLabel={`Progress: ${labels.slice(0, filled).join(', then ')}`} style={{ gap: 6 }}>
-      <View style={{ flexDirection: 'row', gap: 5 }}>
-        {labels.map((l, i) => (
-          <View key={l} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: i < filled ? color.graphite : '#D99A24' }} />
-        ))}
-      </View>
-      <View style={{ flexDirection: 'row', gap: 5 }}>
-        {labels.map((l) => (
-          <Text key={l} numberOfLines={1} style={{ flex: 1, fontFamily: font.semibold, fontSize: 12, color: color.graphite }}>
-            {l}
-          </Text>
-        ))}
-      </View>
-    </View>
-  );
-}
+const styles = StyleSheet.create({
+  screen: { flex: 1, paddingHorizontal: 20, paddingBottom: 28, justifyContent: 'space-between', gap: 14 },
+});

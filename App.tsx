@@ -1,9 +1,9 @@
-import { BigShouldersDisplay_900Black } from '@expo-google-fonts/big-shoulders-display';
 import {
   HankenGrotesk_500Medium,
   HankenGrotesk_600SemiBold,
   HankenGrotesk_700Bold,
 } from '@expo-google-fonts/hanken-grotesk';
+import { Sora_800ExtraBold } from '@expo-google-fonts/sora';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,15 +27,19 @@ import { isMissed, phaseOf } from './src/phase';
 import {
   ClearedScreen,
   CountdownScreen,
-  HomeScreen,
   OnWayScreen,
+  PlacesScreen,
   RingingScreen,
+  ScheduleScreen,
   SettingsScreen,
   TakeoverScreen,
+  TodayScreen,
 } from './src/screens';
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
-import { FadeIn, topInset, useNow } from './src/ui';
+import { FadeIn, TabBar, topInset, useNow } from './src/ui';
+
+type Route = 'today' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -43,14 +47,15 @@ function message(e: unknown) {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    BigShouldersDisplay_900Black,
+    Sora_800ExtraBold,
     HankenGrotesk_500Medium,
     HankenGrotesk_600SemiBold,
     HankenGrotesk_700Bold,
   });
   const [state, setState] = useState<State>(loadState);
   const [notes, setNotes] = useState<string[]>([]);
-  const [showSettings, setShowSettings] = useState(false);
+  const [route, setRoute] = useState<Route>('today');
+  const [from, setFrom] = useState<Route>('settings');
   // Errors show on every screen, so a failure can never happen silently.
   const [error, setError] = useState<string | null>(null);
   // Plain messages (like "you're too far") are not bugs, so they get their own banner text.
@@ -121,12 +126,18 @@ export default function App() {
   }, [watching, state.home, update]);
 
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: color.concrete }} />;
+    return <View style={{ flex: 1, backgroundColor: color.black }} />;
   }
 
   const phase = phaseOf(state, now);
-  const dark =
-    phase === 'takeover' || phase === 'cleared' || (skipping && ['countdown', 'late', 'onway'].includes(phase));
+  // Yellow screens need dark status bar icons. Everything else is black.
+  const yellowScreen = !skipping && ['countdown', 'late', 'onway'].includes(phase);
+  const idle = phase === 'idle' || phase === 'waiting';
+  const showTabs = idle && state.onboarded && !setup && (route === 'today' || route === 'settings');
+  const go = (r: Route, back: Route) => {
+    setFrom(back);
+    setRoute(r);
+  };
 
   const turnOn = () =>
     run(async () => {
@@ -267,34 +278,39 @@ export default function App() {
             setSetup(false);
           }}
         />
-      ) : showSettings ? (
+      ) : route === 'settings' ? (
         <SettingsScreen
           s={state}
           onChange={update}
-          onBack={() => setShowSettings(false)}
-          onSetup={() => {
-            setShowSettings(false);
-            setSetup(true);
-          }}
+          onSchedule={() => go('schedule', 'settings')}
+          onPlaces={() => go('places', 'settings')}
+          onSetup={() => setSetup(true)}
           onBattery={() => run(async () => openBatterySettings())}
         />
+      ) : route === 'schedule' ? (
+        <ScheduleScreen s={state} onChange={onChange} onBack={() => setRoute(from)} backLabel={from === 'today' ? 'Today' : 'Settings'} />
+      ) : route === 'places' ? (
+        <PlacesScreen s={state} onChange={update} onBack={() => setRoute(from)} backLabel={from === 'today' ? 'Today' : 'Settings'} />
       ) : (
-        <HomeScreen
+        <TodayScreen
           s={state}
           now={now}
           notes={notes}
-          onChange={onChange}
           onToggle={onToggle}
           onTest={onTest}
-          onSettings={() => setShowSettings(true)}
+          onSchedule={() => go('schedule', 'today')}
+          onPlaces={() => go('places', 'today')}
         />
       );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <StatusBar style={dark ? 'light' : 'dark'} />
-      <FadeIn key={`${phase}-${skipping}-${showSettings}-${setup || !state.onboarded}`}>{screen}</FadeIn>
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <StatusBar style={yellowScreen ? 'dark' : 'light'} />
+      <View style={{ flex: 1 }}>
+        <FadeIn key={`${phase}-${skipping}-${route}-${setup || !state.onboarded}`}>{screen}</FadeIn>
+      </View>
+      {showTabs ? <TabBar active={route as 'today' | 'settings'} onTab={(r) => setRoute(r)} /> : null}
       {error || notice ? (
         <Pressable
           accessibilityRole="button"
@@ -308,17 +324,17 @@ export default function App() {
             left: 16,
             right: 16,
             top: topInset,
-            backgroundColor: color.white,
-            borderWidth: 2,
-            borderColor: color.graphite,
-            borderRadius: 12,
-            padding: 14,
+            backgroundColor: color.surface2,
+            borderWidth: 1.5,
+            borderColor: color.yellow,
+            borderRadius: 18,
+            padding: 16,
           }}
         >
-          <Text style={{ fontFamily: font.semibold, fontSize: 15, lineHeight: 21, color: color.graphite }}>
+          <Text style={{ fontFamily: font.semibold, fontSize: 15, lineHeight: 21, color: color.text }}>
             {error ?? notice}
           </Text>
-          <Text style={{ fontFamily: font.body, fontSize: 14, color: color.iron, marginTop: 6 }}>
+          <Text style={{ fontFamily: font.body, fontSize: 14, color: color.text2, marginTop: 6 }}>
             {error ? 'Tap to dismiss. Send this message to Claude.' : 'Tap to dismiss.'}
           </Text>
         </Pressable>
