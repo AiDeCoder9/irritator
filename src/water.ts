@@ -94,28 +94,6 @@ export async function rescheduleWater(): Promise<void> {
   }
 }
 
-/** A water reminder in 10 seconds, to try the buttons. Close the app to test with it closed. */
-export async function testWaterReminder(): Promise<void> {
-  await ensureChannel();
-  const w = loadWater();
-  await notifee.createTriggerNotification(
-    {
-      id: 'water-test',
-      title: 'Drink water (test)',
-      body: `${mlText(totalOf(w))} of ${mlText(goalOf(w))} so far.`,
-      android: {
-        channelId: CHANNEL,
-        pressAction: { id: 'default' },
-        actions: [
-          { title: `Drank ${mlText(w.sizeMl)}`, pressAction: { id: 'water-drank' } },
-          { title: 'Half', pressAction: { id: 'water-half' } },
-        ],
-      },
-    },
-    { type: TriggerType.TIMESTAMP, timestamp: Date.now() + 10_000, alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
-  );
-}
-
 /** Notification button pressed. Works with the app closed. Returns true if it was a water action. */
 export async function handleWaterAction(actionId: string | undefined, notificationId?: string): Promise<boolean> {
   if (actionId !== 'water-drank' && actionId !== 'water-half') return false;

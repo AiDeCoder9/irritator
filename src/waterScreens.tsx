@@ -13,7 +13,6 @@ import {
   rescheduleWater,
   scheduledWater,
   setWeight,
-  testWaterReminder,
   suggestedGoal,
   todaysDrinks,
   totalOf,
@@ -65,15 +64,7 @@ export function useWater() {
     setW(undoLast());
     sync();
   }, [sync]);
-  const test = useCallback(async () => {
-    try {
-      await testWaterReminder();
-      setStatus((s) => ({ ...s, error: null }));
-    } catch (e) {
-      setStatus((s) => ({ ...s, error: `Test failed: ${e instanceof Error ? e.message : String(e)}` }));
-    }
-  }, []);
-  return { w, change, drink, undo, status, test };
+  return { w, change, drink, undo, status };
 }
 
 type WaterApi = ReturnType<typeof useWater>;
@@ -159,7 +150,6 @@ export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: numb
         ) : null}
 
         <View style={{ flex: 1, minHeight: 4 }} />
-        <LinkButton label="Test a reminder in 10 seconds" onPress={api.test} />
         <LinkButton label="Water settings" onPress={onSettings} />
       </ScrollView>
     </View>
