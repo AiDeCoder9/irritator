@@ -1,4 +1,3 @@
-import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useKeepAwake } from 'expo-keep-awake';
 import { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -7,6 +6,7 @@ import { activeGym, travelOf } from './gym';
 import { levelAt, messageFor } from './motivation';
 import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeText } from './phase';
 import { Places } from './places';
+import { useTimePicker } from './timePicker';
 import type { State } from './store';
 import { color, font, SKIP_WAIT_SEC, TAKEOVER_AFTER_MIN } from './theme';
 import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, Stepper, Steps, T, Tape, Toggle, topInset } from './ui';
@@ -29,20 +29,6 @@ function Back({ label, onPress }: { label: string; onPress: () => void }) {
       </T>
     </Pressable>
   );
-}
-
-/** Opens the Android time picker. Used on Today and in setup. */
-export function pickTime(s: State, onChange: Patch) {
-  const d = new Date();
-  d.setHours(s.alarmHour, s.alarmMinute, 0, 0);
-  DateTimePickerAndroid.open({
-    value: d,
-    mode: 'time',
-    is24Hour: false,
-    onChange: (event, picked) => {
-      if (event.type === 'set' && picked) onChange({ alarmHour: picked.getHours(), alarmMinute: picked.getMinutes() });
-    },
-  });
 }
 
 /* ---------- Today: tomorrow's alarm and nothing else ---------- */
@@ -170,6 +156,7 @@ export function TodayScreen({
 
 export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: { s: State; onChange: Patch; onBack: () => void; backLabel?: string }) {
   const [hour12, ampm] = time12(s.alarmHour, s.alarmMinute).split(' ');
+  const tp = useTimePicker(s, onChange);
 
   const toggleDay = (d: number) => {
     if (s.days[d] && s.days.filter(Boolean).length === 1) return;
@@ -191,7 +178,7 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
-          onPress={() => pickTime(s, onChange)}
+          onPress={tp.open}
           style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
         >
           <Card pad={22} radius={28} style={{ gap: 6 }}>
@@ -235,6 +222,7 @@ export function ScheduleScreen({ s, onChange, onBack, backLabel = 'Settings' }: 
           </T>
         </View>
       </ScrollView>
+      {tp.sheet}
     </View>
   );
 }

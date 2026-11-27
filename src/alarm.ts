@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import notifee, {
   AlarmType,
   AndroidCategory,
@@ -75,6 +76,8 @@ export async function ensurePermissions(): Promise<string[]> {
     missing.push('Allow notifications for IRRITATOR in system settings.');
   }
 
+  // The rest is Android only: iOS has no alarm permission.
+  if (Platform.OS !== 'android') return missing;
   const settings = await notifee.getNotificationSettings();
   if (settings.android.alarm !== AndroidNotificationSetting.ENABLED) {
     missing.push('Turn on "Alarms & reminders" for IRRITATOR, then come back and press the button again.');
@@ -85,6 +88,7 @@ export async function ensurePermissions(): Promise<string[]> {
 }
 
 export async function openBatterySettings() {
+  if (Platform.OS !== 'android') return;
   if (await notifee.isBatteryOptimizationEnabled()) {
     await notifee.openBatteryOptimizationSettings();
     return;

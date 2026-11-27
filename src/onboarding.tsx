@@ -4,7 +4,7 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { hasGym } from './gym';
 import { Places } from './places';
 import { DAY_NAMES, time12 } from './phase';
-import { pickTime } from './screens';
+import { useTimePicker } from './timePicker';
 import type { State } from './store';
 import { color, font } from './theme';
 import { Button, Card, Chip, Hero, T, topInset } from './ui';
@@ -24,6 +24,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const tp = useTimePicker(s, onChange);
   const [perm, setPerm] = useState<string[] | null>(null);
 
   const attempt = async (fn: () => Promise<void>) => {
@@ -82,7 +83,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Alarm time ${time12(s.alarmHour, s.alarmMinute)}. Tap to change.`}
-              onPress={() => pickTime(s, onChange)}
+              onPress={tp.open}
               style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}
             >
               <Card pad={22} radius={28} style={{ gap: 4 }}>
@@ -188,6 +189,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
           </View>
         </View>
       </ScrollView>
+      {tp.sheet}
     </View>
   );
 }
