@@ -42,7 +42,6 @@ import {
 import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
-import { rescheduleWater } from './src/water';
 import { ProgressScreen } from './src/progressScreen';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
@@ -80,8 +79,6 @@ export default function App() {
 
   useEffect(() => {
     ensureChannels().catch((e) => setError(`Could not create notification channels: ${message(e)}`));
-    // Top up the water reminders each time the app opens.
-    rescheduleWater().catch(() => {});
   }, []);
 
   const update = useCallback((patch: Partial<State>) => {

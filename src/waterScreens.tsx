@@ -11,6 +11,7 @@ import {
   mlText,
   planReminders,
   rescheduleWater,
+  scheduledWater,
   setWeight,
   testWaterReminder,
   suggestedGoal,
@@ -26,30 +27,59 @@ const page = { paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, g
 /** Water lives in storage, because the notification buttons change it with the app closed. Re-read it every few seconds. */
 export function useWater() {
   const [w, setW] = useState<Water>(loadWater);
+  // What Android really has scheduled, and any error from scheduling. Shown in water settings so a silent failure can't hide.
+  const [status, setStatus] = useState<{ count: number; next: number | null; error: string | null }>({ count: -1, next: null, error: null });
+
+  const sync = useCallback(async () => {
+    try {
+      await rescheduleWater();
+      const s = await scheduledWater();
+      setStatus({ ...s, error: null });
+    } catch (e) {
+      setStatus({ count: 0, next: null, error: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
   useEffect(() => {
+    sync();
     const id = setInterval(() => setW(loadWater()), 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [sync]);
+
   /** Change, save, then move the reminders to match. */
-  const change = useCallback((fn: (w: Water) => Water) => {
-    setW(updateWater(fn));
-    rescheduleWater().catch(() => {});
-  }, []);
-  const drink = useCallback((ml: number) => {
-    setW(logDrink(ml));
-    rescheduleWater().catch(() => {});
-  }, []);
+  const change = useCallback(
+    (fn: (w: Water) => Water) => {
+      setW(updateWater(fn));
+      sync();
+    },
+    [sync],
+  );
+  const drink = useCallback(
+    (ml: number) => {
+      setW(logDrink(ml));
+      sync();
+    },
+    [sync],
+  );
   const undo = useCallback(() => {
     setW(undoLast());
-    rescheduleWater().catch(() => {});
+    sync();
+  }, [sync]);
+  const test = useCallback(async () => {
+    try {
+      await testWaterReminder();
+      setStatus((s) => ({ ...s, error: null }));
+    } catch (e) {
+      setStatus((s) => ({ ...s, error: `Test failed: ${e instanceof Error ? e.message : String(e)}` }));
+    }
   }, []);
-  return { w, change, drink, undo };
+  return { w, change, drink, undo, status, test };
 }
 
 type WaterApi = ReturnType<typeof useWater>;
 
 export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: number; onSettings: () => void }) {
-  const { w, drink, undo } = api;
+  const { w, drink, undo, status } = api;
   const total = totalOf(w, now);
   const goal = goalOf(w);
   const pct = Math.min(1, total / goal);
@@ -111,6 +141,11 @@ export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: numb
           </View>
         </View>
 
+        {status.error ? (
+          <T size={14} weight="semibold" tint={color.yellow}>
+            {status.error}
+          </T>
+        ) : null}
         <T size={14} tint={color.text2}>
           {w.enabled ? (next ? `Next reminder ${timeText(next)}.` : '') : 'Reminders are off.'}
         </T>
@@ -124,7 +159,7 @@ export function WaterScreen({ api, now, onSettings }: { api: WaterApi; now: numb
         ) : null}
 
         <View style={{ flex: 1, minHeight: 4 }} />
-        <LinkButton label="Test a reminder in 10 seconds" onPress={() => testWaterReminder().catch(() => {})} />
+        <LinkButton label="Test a reminder in 10 seconds" onPress={api.test} />
         <LinkButton label="Water settings" onPress={onSettings} />
       </ScrollView>
     </View>
@@ -135,7 +170,7 @@ const SIZES = [200, 250, 330, 500, 750, 1000];
 const hour12 = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
 
 export function WaterSettingsScreen({ api, onBack }: { api: WaterApi; onBack: () => void }) {
-  const { w, change } = api;
+  const { w, change, status } = api;
   const suggested = suggestedGoal(w.weightKg);
   const goal = goalOf(w);
 
@@ -264,6 +299,15 @@ export function WaterSettingsScreen({ api, onBack }: { api: WaterApi; onBack: ()
           />
         </Card>
 
+        <T size={13} tint={status.error ? color.yellow : color.text2}>
+          {status.error
+            ? `Reminders could not be scheduled: ${status.error}`
+            : status.count < 0
+              ? 'Checking reminders…'
+              : status.count === 0
+                ? 'No reminders are scheduled.'
+                : `${status.count} reminders scheduled. Next at ${timeText(status.next!)}.`}
+        </T>
         <T size={13} tint={color.text2}>
           {w.lastFromNotification ? `Last drink logged from a notification: ${timeText(w.lastFromNotification)}.` : 'No drink logged from a notification yet.'}
         </T>

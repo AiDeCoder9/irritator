@@ -125,3 +125,13 @@ export async function handleWaterAction(actionId: string | undefined, notificati
   await rescheduleWater();
   return true;
 }
+
+/** What is really scheduled with Android right now. For the status line in water settings. */
+export async function scheduledWater(): Promise<{ count: number; next: number | null }> {
+  const all = await notifee.getTriggerNotifications();
+  const times = all
+    .filter((n) => n.notification.id?.startsWith('water-') && n.trigger.type === TriggerType.TIMESTAMP)
+    .map((n) => (n.trigger as { timestamp: number }).timestamp)
+    .sort((a, b) => a - b);
+  return { count: times.length, next: times[0] ?? null };
+}
