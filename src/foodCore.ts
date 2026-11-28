@@ -32,6 +32,8 @@ export type Targets = {
   health: HealthFlag[];
   /** True once the safety questions were answered (including "none of these"). */
   healthAsked: boolean;
+  /** The goal you committed to. Cleared when the goal weight changes. */
+  commit: { at: number; goalKg: number } | null;
 };
 /** Meal reminders at times you choose, in minutes after midnight. */
 export type Remind = { enabled: boolean; times: number[] };
@@ -45,7 +47,7 @@ export const foodDefaults: Food = {
   meals: [],
   saved: [],
   fdcKey: '',
-  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null, goalKg: null, health: [], healthAsked: false },
+  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null, goalKg: null, health: [], healthAsked: false, commit: null },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
   remind: { enabled: false, times: DEFAULT_MEAL_TIMES },
 };

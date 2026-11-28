@@ -61,11 +61,11 @@ import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
 import { suggestedRestKcal } from './src/food';
 import { goalPlan, goalProblem, goalSkipLine, safetyOf } from './src/goalCore';
-import { GoalsScreen, SafetyScreen } from './src/goalScreens';
+import { CommitScreen, GoalsScreen, SafetyScreen } from './src/goalScreens';
 import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'goals' | 'safety' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'goals' | 'commit' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -139,7 +139,7 @@ export default function App() {
     const w = water.w.weightKg;
     if (safety.hideWeight || t.goalKg == null || w == null) return null;
     if (goalProblem({ goalKg: t.goalKg, weightKg: w, heightCm: t.heightCm, goal: t.goal, minor: isMinor(t) })) return null;
-    return goalSkipLine(goalPlan({ goalKg: t.goalKg, weightKg: w, goal: t.goal, now: Date.now() }), t.goalKg, state.days.filter(Boolean).length);
+    return goalSkipLine(goalPlan({ goalKg: t.goalKg, weightKg: w, goal: t.goal, now: Date.now() }), t.goalKg, state.days.filter(Boolean).length, t.commit?.goalKg === t.goalKg);
   })();
   const missing = useRef(false);
 
@@ -523,6 +523,16 @@ export default function App() {
             setRoute('targets');
           }}
           onWater={() => setRoute('waterSettings')}
+          onCommit={() => setRoute('commit')}
+        />
+      ) : route === 'commit' ? (
+        <CommitScreen
+          targets={food.f.targets}
+          water={water.w}
+          now={now}
+          onBack={() => setRoute('goals')}
+          onCommit={() => food.change((x) => ({ ...x, targets: { ...x.targets, commit: x.targets.goalKg == null ? null : { at: Date.now(), goalKg: x.targets.goalKg } } }))}
+          onUndo={() => food.change((x) => ({ ...x, targets: { ...x.targets, commit: null } }))}
         />
       ) : route === 'mealTimes' ? (
         <MealTimesScreen api={food} onBack={() => setRoute('food')} />

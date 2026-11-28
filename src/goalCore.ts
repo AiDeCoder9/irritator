@@ -100,10 +100,10 @@ export function skipDelayDays(sessionsPerWeek: number): number {
 }
 
 /** The line shown where you decide whether to skip. Null when there is no usable goal. */
-export function goalSkipLine(plan: GoalPlan | null, goalKg: number, sessionsPerWeek: number): string | null {
+export function goalSkipLine(plan: GoalPlan | null, goalKg: number, sessionsPerWeek: number, committed = false): string | null {
   if (!plan || plan.kind !== 'plan') return null;
   const d = skipDelayDays(sessionsPerWeek);
-  return `Your goal: ${goalKg} kg by ${dateText(plan.date)}. Skipping today moves it back about ${d} ${d === 1 ? 'day' : 'days'}.`;
+  return `${committed ? 'You committed to' : 'Your goal:'} ${goalKg} kg by ${dateText(plan.date)}. Skipping today moves it back about ${d} ${d === 1 ? 'day' : 'days'}.`;
 }
 
 /** The line for the progress card. */
@@ -128,3 +128,15 @@ export function bmiBand(bmi: number): string {
 }
 
 export const BMI_NOTE = 'A rough guide for adults. It ignores muscle, so it can read high if you lift. It is not a diagnosis.';
+
+export type Milestone = { ts: number; kg: number; pct: number };
+
+/** Four checkpoints along a steady plan: 25, 50, 75 and 100 percent. */
+export function milestones(plan: GoalPlan | null, weightKg: number, goalKg: number, now: number): Milestone[] {
+  if (!plan || plan.kind !== 'plan') return [];
+  return [0.25, 0.5, 0.75, 1].map((p) => ({
+    pct: Math.round(p * 100),
+    ts: now + Math.round(plan.weeks * 7 * DAY * p),
+    kg: p === 1 ? goalKg : Math.round((weightKg + (goalKg - weightKg) * p) * 10) / 10,
+  }));
+}

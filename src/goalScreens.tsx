@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { GOAL_LABEL, isMinor, type Food, type Targets } from './foodCore';
-import { bmiBand, BMI_NOTE, bmiOf, goalLine, goalPlan, goalProblem, HEALTH_FLAGS, safetyOf, type HealthFlag } from './goalCore';
+import { dateText, milestones, bmiBand, BMI_NOTE, bmiOf, goalLine, goalPlan, goalProblem, HEALTH_FLAGS, safetyOf, type HealthFlag } from './goalCore';
 import { color, font } from './theme';
 import { Button, Card, Hero, LinkButton, Row, Stepper, T, topInset } from './ui';
 import { goalOf, mlText, type Water } from './waterCore';
@@ -94,7 +95,7 @@ export function SafetyScreen({ api, onBack, first }: { api: Api; onBack: () => v
 export function GoalWeightCard({ api, weightKg }: { api: Api; weightKg: number | null }) {
   const { f, change } = api;
   const tg = f.targets;
-  const set = (kg: number | null) => change((x) => ({ ...x, targets: { ...x.targets, goalKg: kg } }));
+  const set = (kg: number | null) => change((x) => ({ ...x, targets: { ...x.targets, goalKg: kg, commit: null } }));
   const start = weightKg == null ? 70 : tg.goal === 'build' ? weightKg + 3 : weightKg - 3;
   const kg = tg.goalKg;
   const problem = kg == null ? null : goalProblem({ goalKg: kg, weightKg, heightCm: tg.heightCm, goal: tg.goal, minor: isMinor(tg) });
@@ -143,6 +144,7 @@ export function GoalsScreen({
   onBack,
   onTargets,
   onWater,
+  onCommit,
 }: {
   s: State;
   water: Water;
@@ -151,6 +153,7 @@ export function GoalsScreen({
   onBack: () => void;
   onTargets: () => void;
   onWater: () => void;
+  onCommit: () => void;
 }) {
   const safety = safetyOf(targets.health);
   const kg = water.weightKg;
@@ -204,6 +207,9 @@ export function GoalsScreen({
                 </>
               )}
               <T size={14} tint={color.text2}>{kg == null ? 'Your weight is not set. Add it in Water settings.' : `Now ${kg} kg.`}</T>
+              {plan && plan.kind === 'plan' ? (
+                <Button label={targets.commit ? 'See my plan' : 'See my plan and commit'} onPress={onCommit} height={52} />
+              ) : null}
               <Button label={gk == null ? 'Set a goal weight' : 'Change goal weight'} onPress={onTargets} bg={color.surface2} fg={color.text} height={52} />
             </Card>
 
@@ -239,6 +245,102 @@ export function GoalsScreen({
         <T size={13} tint={color.text2}>
           Goals come from the settings you already have. Changing them here or there is the same thing.
         </T>
+      </ScrollView>
+    </View>
+  );
+}
+
+
+/** The plan reveal: the date, a simple line, four checkpoints, and a commit step. */
+export function CommitScreen({
+  targets,
+  water,
+  now,
+  onBack,
+  onCommit,
+  onUndo,
+}: {
+  targets: Targets;
+  water: Water;
+  now: number;
+  onBack: () => void;
+  onCommit: () => void;
+  onUndo: () => void;
+}) {
+  const [w, setW] = useState(0);
+  const kg = water.weightKg;
+  const gk = targets.goalKg;
+  const ok = kg != null && gk != null && !goalProblem({ goalKg: gk, weightKg: kg, heightCm: targets.heightCm, goal: targets.goal, minor: isMinor(targets) });
+  const plan = ok ? goalPlan({ goalKg: gk as number, weightKg: kg as number, goal: targets.goal, now }) : null;
+  const H = 120;
+  const x0 = 10;
+  const x1 = Math.max(x0 + 1, w - 10);
+  // Weight on the left starts at the top for a loss and at the bottom for a gain.
+  const y0 = targets.goal === 'build' ? H - 10 : 10;
+  const y1 = targets.goal === 'build' ? 10 : H - 10;
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const ang = Math.atan2(y1 - y0, x1 - x0);
+  const ms = ok && plan ? milestones(plan, kg as number, gk as number, now) : [];
+  const dot = (x: number, y: number, on: boolean) => (
+    <View style={{ position: 'absolute', left: x - 7, top: y - 7, width: 14, height: 14, borderRadius: 7, backgroundColor: on ? color.yellow : color.text2 }} />
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <ScrollView contentContainerStyle={{ paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 32, gap: 16 }}>
+        <LinkButton label="‹ Goals" onPress={onBack} />
+        {!plan || plan.kind !== 'plan' || gk == null || kg == null ? (
+          <Card pad={18}>
+            <T size={16}>Set a usable goal weight first. Your weight and goal are on the Goals screen.</T>
+          </Card>
+        ) : (
+          <>
+            <Hero size={38} tint={color.text}>
+              {`Reach ${gk} kg by ${dateText(plan.date)}`}
+            </Hero>
+            <T size={15} tint={color.text2}>{`${plan.diffKg} kg in about ${plan.weeks} ${plan.weeks === 1 ? 'week' : 'weeks'}, at ${plan.perWeek} kg a week. That is a steady pace and never faster than the safe cap.`}</T>
+
+            <Card pad={16} style={{ gap: 10 }}>
+              <View style={{ height: H }} onLayout={(e) => setW(e.nativeEvent.layout.width)} accessibilityLabel={`Projected weight from ${kg} kg now to ${gk} kg`}>
+                {w > 0 ? (
+                  <>
+                    <View style={{ position: 'absolute', left: (x0 + x1) / 2 - len / 2, top: (y0 + y1) / 2 - 1.5, width: len, height: 3, borderRadius: 2, backgroundColor: color.yellow, transform: [{ rotate: `${ang}rad` }] }} />
+                    {dot(x0, y0, true)}
+                    {dot(x1, y1, true)}
+                    {ms.slice(0, 3).map((m) => dot(x0 + ((x1 - x0) * m.pct) / 100, y0 + ((y1 - y0) * m.pct) / 100, false))}
+                  </>
+                ) : null}
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <T size={14} weight="bold">{`Now ${kg} kg`}</T>
+                <T size={14} weight="bold" tint={color.yellow}>{`${gk} kg`}</T>
+              </View>
+            </Card>
+
+            <Card pad={8}>
+              {ms.map((m, i) => (
+                <View key={m.pct} style={{ minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line }}>
+                  <T size={15} tint={color.text2}>{dateText(m.ts)}</T>
+                  <T size={16} weight="bold">{`${m.kg} kg`}</T>
+                </View>
+              ))}
+            </Card>
+            <T size={13} tint={color.text2}>
+              An estimate. It assumes you keep to your plan. Each skipped session moves the date back, and the skip screen shows by how much. Weight also moves up and down day to day.
+            </T>
+
+            {targets.commit && targets.commit.goalKg === gk ? (
+              <>
+                <Card pad={16}>
+                  <T size={16} weight="bold" tint={color.yellow}>{`Committed on ${dateText(targets.commit.at)}`}</T>
+                </Card>
+                <LinkButton label="Undo my commitment" onPress={onUndo} tint={color.text2} />
+              </>
+            ) : (
+              <Button label="Commit to my goal" onPress={onCommit} />
+            )}
+          </>
+        )}
       </ScrollView>
     </View>
   );
