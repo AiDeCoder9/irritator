@@ -370,6 +370,8 @@ export default function App() {
     run(async () => {
       const patch = await scheduleAlarm(state);
       setSetup(false);
+      // New users answer the safety question before anything else.
+      if (!food.f.targets.healthAsked) setRoute('safety');
       return { ...patch, onboarded: true };
     });
 
@@ -471,6 +473,7 @@ export default function App() {
           onSkip={() => {
             update({ onboarded: true });
             setSetup(false);
+            if (!food.f.targets.healthAsked) setRoute('safety');
           }}
         />
       ) : route === 'settings' ? (
