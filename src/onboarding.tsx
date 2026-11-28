@@ -17,11 +17,13 @@ type Props = {
   onBattery: () => void;
   onFinish: () => void;
   onSkip: () => void;
+  /** Skip the gym setup and use Starter mode. */
+  onStarter?: () => void;
 };
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, onSkip }: Props) {
+export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, onSkip, onStarter }: Props) {
   const [step, setStep] = useState(1);
   const onlyRuns = s.days.every((on, d) => !on || s.kinds[d] === 'run');
   const [busy, setBusy] = useState(false);
@@ -65,6 +67,7 @@ export function Onboarding({ s, onChange, onPermissions, onBattery, onFinish, on
 
         {step === 1 && (
           <>
+            {onStarter ? <LinkButton label="I do not work out yet. Start small instead." onPress={onStarter} /> : null}
             <T size={17} tint={color.text}>
               Add the gyms you go to. When you tap "I'm at the gym", the app checks you are at one of them.
             </T>

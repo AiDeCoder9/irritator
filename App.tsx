@@ -61,11 +61,12 @@ import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
 import { suggestedRestKcal } from './src/food';
 import { goalPlan, goalProblem, goalSkipLine, safetyOf } from './src/goalCore';
+import { StarterScreen, StarterSettingsScreen, useStarter } from './src/starterScreens';
 import { CommitScreen, GoalsScreen, SafetyScreen } from './src/goalScreens';
 import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'goals' | 'commit' | 'safety' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'starterSettings' | 'mealTimes' | 'goals' | 'commit' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -132,6 +133,7 @@ export default function App() {
   const foodToday = totalsOf(food.f, now);
   const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
   const foodDay = { gym: 'Gym day', run: 'Run day', rest: 'Rest day' }[dayTypeOf(state.days, state.kinds, now)];
+  const starter = useStarter();
   const safety = safetyOf(food.f.targets.health);
   // The goal line on the skip screen. Needs a usable goal weight, your weight, and a goal of lose or build.
   const goalText = (() => {
@@ -225,6 +227,7 @@ export default function App() {
   useEffect(() => {
     const open = (r?: unknown) => {
       if (r === 'review') setRoute('review');
+      if (r === 'move') setRoute('today');
       if (r === 'addMeal') {
         setEditMeal(null);
         setRoute('addMeal');
@@ -470,11 +473,33 @@ export default function App() {
           onPermissions={ensurePermissions}
           onBattery={() => run(async () => openBatterySettings())}
           onFinish={finishSetup}
+          onStarter={() =>
+            run(async () => {
+              await ensurePermissions();
+              starter.change((x) => ({ ...x, enabled: true }));
+              setSetup(false);
+              setRoute('today');
+              if (!food.f.targets.healthAsked) setRoute('safety');
+              return { onboarded: true };
+            })
+          }
           onSkip={() => {
             update({ onboarded: true });
             setSetup(false);
             if (!food.f.targets.healthAsked) setRoute('safety');
           }}
+        />
+      ) : route === 'starterSettings' ? (
+        <StarterSettingsScreen api={starter} onBack={() => setRoute('settings')} onPermissions={ensurePermissions} />
+      ) : route === 'today' && starter.st.enabled && idle ? (
+        <StarterScreen
+          api={starter}
+          now={now}
+          onWater={() => setRoute('water')}
+          onFood={safety.hideFood ? undefined : () => setRoute('food')}
+          onGoals={() => setRoute('goals')}
+          onHealth={() => setRoute('health')}
+          onSettings={() => setRoute('starterSettings')}
         />
       ) : route === 'settings' ? (
         <SettingsScreen
@@ -486,6 +511,7 @@ export default function App() {
           onBattery={() => run(async () => openBatterySettings())}
           onHealth={() => setRoute('health')}
           onSafety={() => setRoute('safety')}
+          onStarter={() => setRoute('starterSettings')}
         />
       ) : route === 'safety' ? (
         <SafetyScreen api={food} first={!food.f.targets.healthAsked} onBack={() => setRoute(food.f.targets.healthAsked ? 'settings' : 'today')} />

@@ -409,6 +409,7 @@ export function SettingsScreen({
   onSetup,
   onHealth,
   onSafety,
+  onStarter,
 }: {
   s: State;
   onChange: Patch;
@@ -418,6 +419,7 @@ export function SettingsScreen({
   onSetup: () => void;
   onHealth: () => void;
   onSafety: () => void;
+  onStarter: () => void;
 }) {
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -517,6 +519,7 @@ export function SettingsScreen({
         <Card pad={8}>
           <Row first title="Keep the alarm reliable" sub="Samsung: Battery, Never sleeping apps" right={<Chevron />} onPress={onBattery} />
           {Platform.OS === 'android' ? <Row title="Health Connect" sub="Count runs from your watch" right={<Chevron />} onPress={onHealth} /> : null}
+          <Row title="Starter mode" sub="For starting from zero: a short daily walk" right={<Chevron />} onPress={onStarter} />
           <Row title="Health and safety" sub="Conditions that change what the app shows" right={<Chevron />} onPress={onSafety} />
           <Row title="Run setup again" right={<Chevron />} onPress={onSetup} />
         </Card>
