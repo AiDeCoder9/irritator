@@ -315,8 +315,9 @@ export function Tape({ height = 14 }: { height?: number }) {
 }
 
 /** Awake, left home, at the gym. For yellow screens. Without a saved home there are two stages. */
-export function Steps({ stage, hasHome, leftAt, fmt }: { stage: 1 | 2; hasHome: boolean; leftAt: number | null; fmt: (ts: number) => string }) {
-  const labels = hasHome ? ['Awake', leftAt != null ? `Left ${fmt(leftAt)}` : 'Leave home', 'At the gym'] : ['Awake', 'At the gym'];
+export function Steps({ stage, hasHome, leftAt, fmt, run = false }: { stage: 1 | 2; hasHome: boolean; leftAt: number | null; fmt: (ts: number) => string; run?: boolean }) {
+  const last = run ? 'Run done' : 'At the gym';
+  const labels = hasHome ? ['Awake', leftAt != null ? `Left ${fmt(leftAt)}` : 'Leave home', last] : ['Awake', last];
   const done = hasHome ? (stage === 2 ? 2 : 1) : 1;
   return (
     <View accessible accessibilityLabel={`Progress: ${labels.slice(0, done).join(', then ')}`} style={{ flexDirection: 'row' }}>

@@ -547,7 +547,7 @@ export function CountdownScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: color.yellow, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
-      <Steps stage={1} hasHome={s.home != null} leftAt={null} fmt={timeText} />
+      <Steps stage={1} hasHome={s.home != null} leftAt={null} fmt={timeText} run={run} />
 
       <View style={{ gap: 6, marginTop: 4 }}>
         <T size={20} weight="bold" tint={color.ink}>
@@ -610,7 +610,7 @@ export function OnWayScreen({
 
   return (
     <View style={{ flex: 1, backgroundColor: color.yellow, paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 24, gap: 14 }}>
-      <Steps stage={2} hasHome leftAt={left} fmt={timeText} />
+      <Steps stage={2} hasHome leftAt={left} fmt={timeText} run={run} />
 
       <View style={{ gap: 6, marginTop: 4 }}>
         <T size={20} weight="bold" tint={color.ink}>
