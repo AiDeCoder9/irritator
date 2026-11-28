@@ -3,6 +3,7 @@ import Storage from 'expo-sqlite/kv-store';
 import { DEFAULT_KINDS, type Kind } from './kinds';
 import type { DayEntry } from './progressCore';
 import { sleepDefaults, type Sleep } from './sleepCore';
+import type { Verify } from './verifyCore';
 
 export type Gym = { id: string; label: string; lat: number; lng: number; travelMin: number };
 export type Home = { lat: number; lng: number; label: string };
@@ -43,6 +44,12 @@ export type State = {
   bestStreak: number;
   /** Bedtime reminder, worked back from the alarm. */
   sleep: Sleep;
+  /** After "I'm at the gym": stay 20 minutes and take 100 steps before the day clears. Gym days only. */
+  verifyWorkout: boolean;
+  /** A workout check in progress. */
+  verify: Verify | null;
+  /** Sunday evening notification for the weekly review. */
+  reviewNotify: boolean;
 };
 
 export const defaults: State = {
@@ -67,6 +74,9 @@ export const defaults: State = {
   history: [],
   bestStreak: 4,
   sleep: sleepDefaults,
+  verifyWorkout: true,
+  verify: null,
+  reviewNotify: true,
 };
 
 const KEY = 'irritator.state.v1';

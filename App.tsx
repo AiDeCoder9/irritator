@@ -44,6 +44,13 @@ import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
 import { HealthScreen } from './src/healthScreens';
+import { beginVerify, cancelVerify } from './src/alarm';
+import { VerifyScreen } from './src/verifyScreen';
+import notifee from 'react-native-notify-kit';
+import { onRoute } from './src/nav';
+import { rescheduleReview } from './src/reviewNotify';
+import { isActive, judge } from './src/verifyCore';
+import { stepsSince } from './src/health';
 import { findRecentRun, HealthData, mergeWeights, readHealthData, runSummary, sleepText } from './src/health';
 import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
@@ -83,6 +90,8 @@ export default function App() {
   // Remember what today was, so the cleared screen can say "run" after the next alarm is set.
   const [wasRun, setWasRun] = useState(false);
   const checking = useRef(false);
+  const [vSteps, setVSteps] = useState<number | null>(null);
+  const [vFallback, setVFallback] = useState(false);
   const now = useNow(1000);
   const water = useWater();
   const food = useFood();
@@ -196,6 +205,35 @@ export default function App() {
     };
   }, [watching, state.home, update]);
 
+  // Sunday review reminders, and opening the review when its notification is tapped.
+  useEffect(() => {
+    rescheduleReview(state.reviewNotify).catch(() => {});
+  }, [state.reviewNotify]);
+  useEffect(() => {
+    const open = (r?: unknown) => r === 'review' && setRoute('review');
+    notifee
+      .getInitialNotification()
+      .then((n) => open(n?.notification?.data?.route))
+      .catch(() => {});
+    return onRoute(open);
+  }, []);
+
+  // While the workout check runs, read the steps taken since it started.
+  const verifying = phaseOf(state, now) === 'verifying';
+  const verifyStart = state.verify?.startAt;
+  useEffect(() => {
+    if (!verifying || verifyStart == null) return;
+    let alive = true;
+    const read = () =>
+      stepsSince(verifyStart, Date.now()).then((n) => alive && setVSteps(n));
+    read();
+    const id = setInterval(read, 20_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [verifying, verifyStart]);
+
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: color.black }} />;
   }
@@ -258,12 +296,45 @@ export default function App() {
         setNotice(r.message);
         return;
       }
+      // Gym days: stay 20 minutes and take 100 steps first. The check starts now.
+      if (kindOf(state) === 'gym' && state.verifyWorkout && !isActive(state.verify, Date.now())) {
+        setVSteps(null);
+        setVFallback(false);
+        await run(() => beginVerify(state, r.gymId ?? null));
+        setSkipping(false);
+        return;
+      }
       setWasRun(kindOf(state) === 'run');
       await run(() => checkIn(state, note));
       setSkipping(false);
       setRunDone(false);
     } catch (e) {
       setError(`Could not check your location: ${message(e)}`);
+    } finally {
+      checking.current = false;
+    }
+  };
+
+  // Second check, once the 20 minutes are up: still at the gym, and enough steps.
+  const finishVerify = async (fallback = false) => {
+    const v = state.verify;
+    if (!v || checking.current) return;
+    checking.current = true;
+    try {
+      const nowTs = Date.now();
+      const atGym = state.verifyLocation && state.gyms.length > 0 ? (await checkAtGym(state)).ok : null;
+      const steps = await stepsSince(v.startAt, nowTs);
+      const j = judge(v, nowTs, steps, atGym, fallback);
+      if (!j.ok) {
+        setNotice(j.message);
+        setVFallback(j.canFallback);
+        if (steps != null) setVSteps(steps);
+        return;
+      }
+      setWasRun(false);
+      await run(() => checkIn(state, j.note));
+    } catch (e) {
+      setError(`Could not finish the check: ${message(e)}`);
     } finally {
       checking.current = false;
     }
@@ -349,6 +420,19 @@ export default function App() {
           onCheckIn={() => verifiedCheckIn()}
           onExcuse={() => setExcusing(true)}
           onSkip={() => run(() => skipToday(state))}
+        />
+      );
+      break;
+    case 'verifying':
+      screen = (
+        <VerifyScreen
+          s={state}
+          now={now}
+          steps={vSteps}
+          canFallback={vFallback}
+          onFinish={() => finishVerify(false)}
+          onFallback={() => finishVerify(true)}
+          onCancel={() => run(() => cancelVerify())}
         />
       );
       break;

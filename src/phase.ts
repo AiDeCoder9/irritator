@@ -1,7 +1,8 @@
 import { TAKEOVER_AFTER_MIN } from './theme';
 import type { State } from './store';
+import { isActive } from './verifyCore';
 
-export type Phase = 'idle' | 'waiting' | 'ringing' | 'countdown' | 'late' | 'takeover' | 'onway' | 'cleared';
+export type Phase = 'idle' | 'waiting' | 'ringing' | 'countdown' | 'late' | 'takeover' | 'onway' | 'verifying' | 'cleared';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -39,6 +40,7 @@ export function phaseOf(s: State, now: number): Phase {
   }
   if (s.alarmAt == null) return 'idle';
   if (now < s.alarmAt) return 'waiting';
+  if (isActive(s.verify, now)) return 'verifying';
   const leaveBy = leaveByOf(s);
   if (leaveBy == null) return 'ringing';
   if (leftHomeOf(s) != null) return 'onway';
@@ -49,6 +51,7 @@ export function phaseOf(s: State, now: number): Phase {
 
 /** True when the alarm rang and you never got to the gym within the allowed window. */
 export function isMissed(s: State, now: number): boolean {
+  if (isActive(s.verify, now)) return false;
   if (s.alarmAt == null || now < s.alarmAt) return false;
   const leaveBy = leaveByOf(s);
   const left = leftHomeOf(s);

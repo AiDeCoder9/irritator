@@ -133,3 +133,16 @@ export function weekReview(i: ReviewInput): Review {
     focus,
   };
 }
+
+/** The next `n` Sundays at `hour`:00 local time that are still in the future. */
+export function nextSundays(now: number, n = 4, hour = 18): number[] {
+  const out: number[] = [];
+  const d = new Date(now);
+  d.setHours(hour, 0, 0, 0);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  while (out.length < n) {
+    if (d.getTime() > now + 5000) out.push(d.getTime());
+    d.setDate(d.getDate() + 7);
+  }
+  return out;
+}

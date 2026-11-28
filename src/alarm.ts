@@ -16,6 +16,7 @@ import { kindOf } from './kinds';
 import { addEntry } from './progressCore';
 import type { State } from './store';
 import { TAKEOVER_AFTER_MIN } from './theme';
+import { endsAt, VERIFY_MIN, VERIFY_MIN_TEST, type Verify } from './verifyCore';
 
 const MIN = 60_000;
 
@@ -115,6 +116,7 @@ export async function scheduleAlarm(s: State, whenMs?: number): Promise<Partial<
   await ensureChannels();
   await cancelNags();
   await notifee.cancelNotification('alarm');
+  await notifee.cancelNotification('verify-done');
 
   const alarmAt = whenMs ?? nextOccurrenceBy((d) => timeOnDay(s, d), s.days);
 
@@ -138,13 +140,14 @@ export async function scheduleAlarm(s: State, whenMs?: number): Promise<Partial<
     at(alarmAt, true),
   );
 
-  return { alarmAt, dismissedAt: null, checkedInAt: null, leftHomeAt: null };
+  return { alarmAt, dismissedAt: null, checkedInAt: null, leftHomeAt: null, verify: null };
 }
 
 export async function cancelAlarm(): Promise<Partial<State>> {
   await notifee.cancelNotification('alarm');
   await cancelNags();
-  return { alarmAt: null, dismissedAt: null, checkedInAt: null, leftHomeAt: null };
+  await notifee.cancelNotification('verify-done');
+  return { alarmAt: null, dismissedAt: null, checkedInAt: null, leftHomeAt: null, verify: null };
 }
 
 /** Stops the ringing and schedules the escalating nags. The caller saves dismissedAt first, so the countdown always starts. */
@@ -252,4 +255,27 @@ export async function excuseToday(s: State, why: string): Promise<Partial<State>
 /** Hides the cleared screen. The next alarm is already scheduled. */
 export async function closeToday(): Promise<Partial<State>> {
   return { checkedInAt: null };
+}
+
+/** Starts the workout check: stops the nags, and rings when the time is up so you remember to finish. */
+export async function beginVerify(s: State, gymId: string | null): Promise<Partial<State>> {
+  await ensureChannels();
+  await cancelNags();
+  const v: Verify = { startAt: Date.now(), gymId, minutes: s.verifyLocation ? VERIFY_MIN : VERIFY_MIN_TEST };
+  await notifee.createTriggerNotification(
+    {
+      id: 'verify-done',
+      title: `${v.minutes} ${v.minutes === 1 ? 'minute' : 'minutes'} done`,
+      body: 'Open IRRITATOR and finish your check-in.',
+      android: { channelId: CH.nag, importance: AndroidImportance.HIGH, pressAction: { id: 'default' } },
+    },
+    at(endsAt(v)),
+  );
+  return { verify: v };
+}
+
+/** Drops a workout check you started by mistake. */
+export async function cancelVerify(): Promise<Partial<State>> {
+  await notifee.cancelNotification('verify-done');
+  return { verify: null };
 }

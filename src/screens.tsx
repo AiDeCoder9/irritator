@@ -454,6 +454,11 @@ export function SettingsScreen({
             }
           />
           <Row
+            title="Prove my workout"
+            sub="Gym days: stay 20 minutes and take 100 steps"
+            right={<Toggle on={s.verifyWorkout} onPress={() => onChange({ verifyWorkout: !s.verifyWorkout })} label="Prove my workout" />}
+          />
+          <Row
             title="Check my location"
             sub="Turn off only to test at home"
             right={<Toggle on={s.verifyLocation} onPress={() => onChange({ verifyLocation: !s.verifyLocation })} label="Check my location at check-in" />}
@@ -463,6 +468,11 @@ export function SettingsScreen({
         <Card pad={8}>
           <Row
             first
+            title="Sunday review"
+            sub="A reminder on Sunday evening to read your week"
+            right={<Toggle on={s.reviewNotify} onPress={() => onChange({ reviewNotify: !s.reviewNotify })} label="Sunday review reminder" />}
+          />
+          <Row
             title="Bedtime reminder"
             sub={s.sleep.enabled ? `Reminds you ${hoursText(s.sleep.hours)} before your alarm` : 'Works back from your alarm'}
             right={<Toggle on={s.sleep.enabled} onPress={() => onChange({ sleep: { ...s.sleep, enabled: !s.sleep.enabled } })} label="Bedtime reminder" />}
