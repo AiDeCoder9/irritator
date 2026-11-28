@@ -1,9 +1,12 @@
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
-import { isMinor, type Food } from './foodCore';
-import { goalLine, goalPlan, goalProblem, HEALTH_FLAGS, safetyOf, type HealthFlag } from './goalCore';
+import { GOAL_LABEL, isMinor, type Food, type Targets } from './foodCore';
+import { bmiBand, BMI_NOTE, bmiOf, goalLine, goalPlan, goalProblem, HEALTH_FLAGS, safetyOf, type HealthFlag } from './goalCore';
 import { color, font } from './theme';
-import { Button, Card, Hero, LinkButton, Stepper, T, topInset } from './ui';
+import { Button, Card, Hero, LinkButton, Row, Stepper, T, topInset } from './ui';
+import { goalOf, mlText, type Water } from './waterCore';
+import { statsOf } from './progressCore';
+import type { State } from './store';
 
 type Api = { f: Food; change: (fn: (f: Food) => Food) => void };
 
@@ -127,5 +130,116 @@ export function GoalWeightCard({ api, weightKg }: { api: Api; weightKg: number |
         {`The date uses a steady, safe pace: ${tg.goal === 'build' ? '0.25' : '0.5'} kg a week. It is an estimate and never faster than the cap. Your skip screen shows it, so skipping has a visible cost.`}
       </T>
     </Card>
+  );
+}
+
+
+/** One place for every goal. Only collects settings that already exist. */
+export function GoalsScreen({
+  s,
+  water,
+  targets,
+  now,
+  onBack,
+  onTargets,
+  onWater,
+}: {
+  s: State;
+  water: Water;
+  targets: Targets;
+  now: number;
+  onBack: () => void;
+  onTargets: () => void;
+  onWater: () => void;
+}) {
+  const safety = safetyOf(targets.health);
+  const kg = water.weightKg;
+  const minor = isMinor(targets);
+  const bmi = minor ? null : bmiOf(kg, targets.heightCm);
+  const gk = targets.goalKg;
+  const problem = gk == null ? null : goalProblem({ goalKg: gk, weightKg: kg, heightCm: targets.heightCm, goal: targets.goal, minor });
+  const plan = gk != null && !problem && kg != null ? goalPlan({ goalKg: gk, weightKg: kg, goal: targets.goal, now }) : null;
+  const goalBmi = gk != null && !problem && !minor ? bmiOf(gk, targets.heightCm) : null;
+  const st = statsOf(s.history, s.days, s.streak, s.bestStreak, now);
+  const perWeek = s.days.filter(Boolean).length;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <ScrollView contentContainerStyle={{ paddingTop: topInset, paddingHorizontal: 20, paddingBottom: 32, gap: 16 }}>
+        <View>
+          <LinkButton label="‹ Progress" onPress={onBack} />
+          <Hero size={34} tint={color.text}>
+            Goals
+          </Hero>
+        </View>
+
+        <Card bg={color.yellow} pad={20} radius={28} style={{ gap: 4 }}>
+          <T size={14} weight="bold" tint={color.inkSoft}>
+            Gym this week
+          </T>
+          <Hero size={48} tint={color.ink} fit>
+            {`${st.weekDone} of ${st.weekScheduled}`}
+          </Hero>
+          <T size={15} weight="semibold" tint={color.inkSoft}>
+            {`${perWeek} ${perWeek === 1 ? 'day' : 'days'} a week is your plan. Change days in Settings, Schedule.`}
+          </T>
+        </Card>
+
+        {safety.hideWeight ? null : (
+          <>
+            <Card pad={18} style={{ gap: 8 }}>
+              <T size={14} weight="semibold" tint={color.text2}>
+                Goal weight
+              </T>
+              {gk == null ? (
+                <T size={16}>No goal weight yet. Set one and your skip screen shows what skipping does to the date.</T>
+              ) : (
+                <>
+                  <Hero size={40} tint={color.text} fit>
+                    {`${gk} kg`}
+                  </Hero>
+                  <T size={15} tint={problem ? color.yellow : color.text2}>
+                    {problem ?? goalLine(plan, gk)}
+                  </T>
+                </>
+              )}
+              <T size={14} tint={color.text2}>{kg == null ? 'Your weight is not set. Add it in Water settings.' : `Now ${kg} kg.`}</T>
+              <Button label={gk == null ? 'Set a goal weight' : 'Change goal weight'} onPress={onTargets} bg={color.surface2} fg={color.text} height={52} />
+            </Card>
+
+            <Card pad={18} style={{ gap: 6 }}>
+              <T size={14} weight="semibold" tint={color.text2}>
+                BMI
+              </T>
+              {minor ? (
+                <T size={15} tint={color.text2}>BMI is not shown under 18. Ask a doctor, who uses growth charts for this.</T>
+              ) : bmi == null ? (
+                <T size={15} tint={color.text2}>{targets.heightCm == null ? 'Add your height in Daily targets to see it.' : 'Add your weight in Water settings to see it.'}</T>
+              ) : (
+                <>
+                  <Hero size={40} tint={color.text} fit>
+                    {String(bmi)}
+                  </Hero>
+                  <T size={15} tint={color.text2}>{bmiBand(bmi)}</T>
+                  {goalBmi != null ? <T size={14} tint={color.text2}>{`At your goal weight it would be ${goalBmi}.`}</T> : null}
+                </>
+              )}
+              <T size={13} tint={color.text2}>{BMI_NOTE}</T>
+            </Card>
+
+            <Card pad={8}>
+              <Row first title="Calorie goal" sub="Daily targets, age, height" right={<T size={15} weight="bold" tint={color.yellow}>{GOAL_LABEL[targets.goal]}</T>} onPress={onTargets} />
+            </Card>
+          </>
+        )}
+
+        <Card pad={8}>
+          <Row first title="Water goal" sub="Tap to change in Water settings" right={<T size={15} weight="bold" tint={color.yellow}>{mlText(goalOf(water, now))}</T>} onPress={onWater} />
+        </Card>
+        <T size={13} tint={color.text2}>
+          Goals come from the settings you already have. Changing them here or there is the same thing.
+        </T>
+      </ScrollView>
+    </View>
   );
 }

@@ -61,11 +61,11 @@ import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
 import { suggestedRestKcal } from './src/food';
 import { goalPlan, goalProblem, goalSkipLine, safetyOf } from './src/goalCore';
-import { SafetyScreen } from './src/goalScreens';
+import { GoalsScreen, SafetyScreen } from './src/goalScreens';
 import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'safety' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'goals' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -127,6 +127,7 @@ export default function App() {
     });
   }, [hd, changeWeights]);
   const lastNight = hd?.nights[ymd(Date.now())];
+  const [targetsFrom, setTargetsFrom] = useState<Route>('food');
   const [editMeal, setEditMeal] = useState<Meal | null>(null);
   const foodToday = totalsOf(food.f, now);
   const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
@@ -500,12 +501,28 @@ export default function App() {
             setRoute('addMeal');
           }}
           onFasting={() => setRoute('fasting')}
-          onTargets={() => setRoute('targets')}
+          onTargets={() => {
+            setTargetsFrom('food');
+            setRoute('targets');
+          }}
           onPlan={() => setRoute('plan')}
           onMealTimes={() => setRoute('mealTimes')}
           weightKg={water.w.weightKg}
           days={state.days}
           kinds={state.kinds}
+        />
+      ) : route === 'goals' ? (
+        <GoalsScreen
+          s={state}
+          water={water.w}
+          targets={food.f.targets}
+          now={now}
+          onBack={() => setRoute('progress')}
+          onTargets={() => {
+            setTargetsFrom('goals');
+            setRoute('targets');
+          }}
+          onWater={() => setRoute('waterSettings')}
         />
       ) : route === 'mealTimes' ? (
         <MealTimesScreen api={food} onBack={() => setRoute('food')} />
@@ -525,7 +542,7 @@ export default function App() {
           }}
         />
       ) : route === 'targets' ? (
-        <TargetsScreen api={food} weightKg={water.w.weightKg} onBack={() => setRoute('food')} />
+        <TargetsScreen api={food} weightKg={water.w.weightKg} onBack={() => setRoute(targetsFrom)} backLabel={targetsFrom === 'goals' ? 'Goals' : 'Food'} />
       ) : route === 'fasting' ? (
         <FastingScreen api={food} onBack={() => setRoute('food')} />
       ) : route === 'review' ? (
@@ -552,6 +569,7 @@ export default function App() {
           now={now}
           targets={food.f.targets}
           onReview={() => setRoute('review')}
+          onGoals={() => setRoute('goals')}
           onLogWeight={(kg) => water.change((x) => setWeight(x, kg))}
           onApply={(delta) =>
             food.change((f) => {

@@ -789,7 +789,7 @@ export function FastingScreen({ api, onBack }: { api: FoodApi; onBack: () => voi
 
 /* ---------- Daily targets ---------- */
 
-export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightKg: number | null; onBack: () => void }) {
+export function TargetsScreen({ api, weightKg, onBack, backLabel = 'Food' }: { api: FoodApi; weightKg: number | null; onBack: () => void; backLabel?: string }) {
   const { f, change } = api;
   const tg = f.targets;
   const set = (p: Partial<typeof tg>) => change((x) => ({ ...x, targets: { ...x.targets, ...p } }));
@@ -806,7 +806,7 @@ export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightK
         <View>
           <Pressable accessibilityRole="button" onPress={onBack} style={{ minHeight: 48, justifyContent: 'center' }}>
             <T size={16} weight="semibold" tint={color.text2}>
-              ‹ Food
+              ‹ {backLabel}
             </T>
           </Pressable>
           <Hero size={34} tint={color.text}>

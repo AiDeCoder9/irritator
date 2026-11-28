@@ -112,3 +112,19 @@ export function goalLine(plan: GoalPlan | null, goalKg: number): string {
   if (plan.kind === 'reached') return `You are at ${goalKg} kg. Goal reached.`;
   return `${plan.diffKg} kg to go. About ${plan.weeks} ${plan.weeks === 1 ? 'week' : 'weeks'} at ${plan.perWeek} kg a week, by ${dateText(plan.date)}.`;
 }
+
+/** Body mass index, one decimal. Null without a sensible weight and height. */
+export function bmiOf(weightKg: number | null, heightCm: number | null): number | null {
+  if (weightKg == null || heightCm == null || weightKg <= 0 || heightCm < 100) return null;
+  return Math.round((weightKg / (heightCm / 100) ** 2) * 10) / 10;
+}
+
+/** A plain label for the standard adult ranges. Not a diagnosis. */
+export function bmiBand(bmi: number): string {
+  if (bmi < 18.5) return 'Below 18.5';
+  if (bmi < 25) return '18.5 to 24.9, the usual healthy range';
+  if (bmi < 30) return '25 to 29.9';
+  return '30 or more';
+}
+
+export const BMI_NOTE = 'A rough guide for adults. It ignores muscle, so it can read high if you lift. It is not a diagnosis.';

@@ -191,6 +191,7 @@ export function ProgressScreen({
   onLogWeight,
   onApply,
   onReview,
+  onGoals,
 }: {
   s: State;
   water: Water;
@@ -199,6 +200,7 @@ export function ProgressScreen({
   onLogWeight: (kg: number) => void;
   onApply: (delta: number) => void;
   onReview: () => void;
+  onGoals: () => void;
 }) {
   const st = statsOf(s.history, s.days, s.streak, s.bestStreak, now);
   const cells = lastDays(s.history, s.days, now, 14);
@@ -258,7 +260,8 @@ export function ProgressScreen({
         )}
 
         <Card pad={8}>
-          <Row first title="Weekly review" sub="The last 7 days in one place" right={<Chevron />} onPress={onReview} />
+          <Row first title="Goals" sub="Weight, BMI, calories, water, gym days" right={<Chevron />} onPress={onGoals} />
+          <Row title="Weekly review" sub="The last 7 days in one place" right={<Chevron />} onPress={onReview} />
         </Card>
 
         <T size={13} tint={color.text2}>
