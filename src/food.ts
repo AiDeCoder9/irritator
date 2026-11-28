@@ -1,7 +1,8 @@
 import Storage from 'expo-sqlite/kv-store';
 import notifee, { AlarmType, AndroidImportance, AndroidVisibility, TriggerType } from 'react-native-notify-kit';
 
-import { fastEvents, Food, foodDefaults, Hit, parseUsda } from './foodCore';
+import { fastEvents, Food, foodDefaults, Hit, mealReminderEvents, parseUsda } from './foodCore';
+import { safetyOf } from './goalCore';
 import { timeText } from './phase';
 
 export * from './foodCore';
@@ -14,7 +15,7 @@ export function loadFood(): Food {
     const raw = Storage.getItemSync(KEY);
     if (!raw) return foodDefaults;
     const saved = JSON.parse(raw);
-    return { ...foodDefaults, ...saved, fast: { ...foodDefaults.fast, ...saved.fast }, targets: { ...foodDefaults.targets, ...saved.targets } };
+    return { ...foodDefaults, ...saved, fast: { ...foodDefaults.fast, ...saved.fast }, targets: { ...foodDefaults.targets, ...saved.targets }, remind: { ...foodDefaults.remind, ...saved.remind } };
   } catch {
     return foodDefaults;
   }
@@ -55,6 +56,34 @@ export async function rescheduleFast(): Promise<void> {
         title: e.opens ? 'Eating window is open' : 'Eating window closed',
         body: e.opens ? `You can eat until ${timeText(e.ts + fast.eatHours * 3_600_000)}.` : 'Your fast starts now. Water and tea are fine.',
         android: { channelId: CHANNEL, pressAction: { id: 'default' } },
+      },
+      { type: TriggerType.TIMESTAMP, timestamp: e.ts, alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
+    );
+  }
+}
+
+/* ---------- meal reminders ---------- */
+
+const MEAL_CHANNEL = 'irritator-meals';
+const MEAL_IDS = Array.from({ length: 32 }, (_, i) => `meal-${i}`);
+
+/** Cancels the old meal reminders and schedules the next three days. Safe to call any time, and after every logged meal. */
+export async function rescheduleMeals(): Promise<void> {
+  for (const id of MEAL_IDS) await notifee.cancelNotification(id);
+  const f = loadFood();
+  if (safetyOf(f.targets.health).hideFood) return;
+  const events = mealReminderEvents(f.remind, f.meals, Date.now()).slice(0, MEAL_IDS.length);
+  if (!events.length) return;
+  await notifee.createChannel({ id: MEAL_CHANNEL, name: 'Meal reminders', importance: AndroidImportance.DEFAULT, visibility: AndroidVisibility.PUBLIC });
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    await notifee.createTriggerNotification(
+      {
+        id: MEAL_IDS[i],
+        title: e.late ? 'Did you eat?' : 'Time to eat',
+        body: e.late ? 'Log it so your day adds up. One tap from your past meals.' : 'Log it when you are done. One tap from your past meals.',
+        data: { route: 'addMeal' },
+        android: { channelId: MEAL_CHANNEL, pressAction: { id: 'default' } },
       },
       { type: TriggerType.TIMESTAMP, timestamp: e.ts, alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE } },
     );

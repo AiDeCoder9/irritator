@@ -33,9 +33,13 @@ export type Targets = {
   /** True once the safety questions were answered (including "none of these"). */
   healthAsked: boolean;
 };
-export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string; targets: Targets };
+/** Meal reminders at times you choose, in minutes after midnight. */
+export type Remind = { enabled: boolean; times: number[] };
+export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string; targets: Targets; remind: Remind };
 
 export const EAT_HOURS = [8, 10, 12];
+export const MAX_MEAL_TIMES = 5;
+export const DEFAULT_MEAL_TIMES = [8 * 60, 13 * 60, 20 * 60];
 
 export const foodDefaults: Food = {
   meals: [],
@@ -43,6 +47,7 @@ export const foodDefaults: Food = {
   fdcKey: '',
   targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null, goalKg: null, health: [], healthAsked: false },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
+  remind: { enabled: false, times: DEFAULT_MEAL_TIMES },
 };
 
 const MIN = 60_000;
@@ -336,4 +341,61 @@ export function suggestMeals(saved: Saved[], budgetKcal: number, n = 3): Saved[]
     .filter((s) => s.kcal <= budgetKcal * 1.15)
     .sort((a, b) => Math.abs(a.kcal - budgetKcal) - Math.abs(b.kcal - budgetKcal) || (b.protein ?? 0) - (a.protein ?? 0))
     .slice(0, n);
+}
+
+
+/* ---------- Past meals and meal reminders ---------- */
+
+export type Recent = { name: string; kcal: number; protein: number | null; last: number };
+
+/** Every meal you have logged or saved, newest first, one line per name. Used for one-tap logging. */
+export function recentMeals(f: Pick<Food, 'meals' | 'saved'>, limit = 40): Recent[] {
+  const seen = new Set<string>();
+  const out: Recent[] = [];
+  for (const m of [...f.meals].sort((a, b) => b.t - a.t)) {
+    const k = m.name.trim().toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ name: m.name, kcal: m.kcal, protein: m.protein, last: m.t });
+  }
+  for (const m of f.saved) {
+    const k = m.name.trim().toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ name: m.name, kcal: m.kcal, protein: m.protein, last: 0 });
+  }
+  return out.slice(0, limit);
+}
+
+/** A meal time today (or on the day of `base`) as a timestamp. */
+export function atMinutes(base: number, minutes: number): number {
+  const d = new Date(base);
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
+  return d.getTime();
+}
+
+export type MealEvent = { ts: number; late: boolean };
+const LATE_AFTER = 30 * MIN;
+const JUST_ATE = 60 * MIN;
+
+/**
+ * The next meal reminders. One at each meal time, and one follow-up 30 minutes later.
+ * Skipped when a meal was already logged in the hour before the reminder (or between the reminder and now),
+ * so it never nags after you ate. Returns nothing when reminders are off.
+ */
+export function mealReminderEvents(r: Remind, meals: Meal[], now: number, days = 3): MealEvent[] {
+  if (!r.enabled) return [];
+  const out: MealEvent[] = [];
+  const times = [...r.times].sort((a, b) => a - b).slice(0, MAX_MEAL_TIMES);
+  for (let d = 0; d < days; d++) {
+    const base = now + d * DAY;
+    for (const m of times) {
+      const at = atMinutes(base, m);
+      const ate = meals.some((x) => x.t >= at - JUST_ATE && x.t <= Math.max(now, at));
+      if (ate) continue;
+      if (at > now) out.push({ ts: at, late: false });
+      if (at + LATE_AFTER > now) out.push({ ts: at + LATE_AFTER, late: true });
+    }
+  }
+  return out.sort((a, b) => a.ts - b.ts);
 }

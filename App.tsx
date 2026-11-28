@@ -52,7 +52,7 @@ import { rescheduleReview } from './src/reviewNotify';
 import { isActive, judge } from './src/verifyCore';
 import { stepsSince } from './src/health';
 import { findRecentRun, HealthData, mergeWeights, readHealthData, runSummary, sleepText } from './src/health';
-import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
+import { AddMealScreen, FastingScreen, FoodScreen, MealTimesScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
 import { bumpsFor, goalOf, mlText, setWeight, totalOf } from './src/waterCore';
@@ -65,7 +65,7 @@ import { SafetyScreen } from './src/goalScreens';
 import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'safety' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'mealTimes' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -222,7 +222,13 @@ export default function App() {
     rescheduleReview(state.reviewNotify).catch(() => {});
   }, [state.reviewNotify]);
   useEffect(() => {
-    const open = (r?: unknown) => r === 'review' && setRoute('review');
+    const open = (r?: unknown) => {
+      if (r === 'review') setRoute('review');
+      if (r === 'addMeal') {
+        setEditMeal(null);
+        setRoute('addMeal');
+      }
+    };
     notifee
       .getInitialNotification()
       .then((n) => open(n?.notification?.data?.route))
@@ -496,10 +502,13 @@ export default function App() {
           onFasting={() => setRoute('fasting')}
           onTargets={() => setRoute('targets')}
           onPlan={() => setRoute('plan')}
+          onMealTimes={() => setRoute('mealTimes')}
           weightKg={water.w.weightKg}
           days={state.days}
           kinds={state.kinds}
         />
+      ) : route === 'mealTimes' ? (
+        <MealTimesScreen api={food} onBack={() => setRoute('food')} />
       ) : route === 'addMeal' ? (
         <AddMealScreen key={editMeal?.id ?? 'new'} api={food} initial={editMeal} onDone={() => setRoute('food')} />
       ) : route === 'plan' ? (

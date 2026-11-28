@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 
 import {
+  atMinutes,
+  DEFAULT_MEAL_TIMES,
+  MAX_MEAL_TIMES,
+  recentMeals,
   DAY_KCAL,
   DayType,
   dayTypeOf,
@@ -28,6 +32,7 @@ import {
   Hit,
   parseNum,
   rescheduleFast,
+  rescheduleMeals,
   Saved,
   scaleFor,
   searchFoods,
@@ -54,12 +59,14 @@ export function useFood() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     rescheduleFast().catch(() => {});
+    rescheduleMeals().catch(() => {});
     return () => void (timer.current && clearTimeout(timer.current));
   }, []);
 
   const change = useCallback((fn: (f: Food) => Food) => {
     setF(updateFood(fn));
     rescheduleFast().catch(() => {});
+    rescheduleMeals().catch(() => {});
   }, []);
 
   const saveMeal = useCallback(
@@ -105,6 +112,7 @@ export function FoodScreen({
   onFasting,
   onTargets,
   onPlan,
+  onMealTimes,
   weightKg,
   days,
   kinds,
@@ -116,6 +124,7 @@ export function FoodScreen({
   kinds: ('gym' | 'run')[];
   onTargets: () => void;
   onPlan: () => void;
+  onMealTimes: () => void;
   onAdd: () => void;
   onEdit: (m: Meal) => void;
   onFasting: () => void;
@@ -209,6 +218,20 @@ export function FoodScreen({
           </Card>
         </Pressable>
 
+        <Pressable accessibilityRole="button" onPress={onMealTimes} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+          <Card pad={16} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1 }}>
+              <T size={17} weight="bold">
+                Meal reminders
+              </T>
+              <T size={14} tint={color.text2}>
+                {f.remind.enabled ? `${f.remind.times.length} meals a day: ${[...f.remind.times].sort((a, b) => a - b).map((m) => time12(Math.floor(m / 60), m % 60)).join(', ')}` : 'Off. Set your meal times to get a reminder to eat and log.'}
+              </T>
+            </View>
+            <Chevron />
+          </Card>
+        </Pressable>
+
         <Button label="Add a meal" onPress={onAdd} height={60} />
 
         {meals.length ? (
@@ -282,6 +305,17 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
   const [keep, setKeep] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
+  // When you ate: now, or earlier today.
+  const tp = useTimePicker('When did you eat?');
+  const [at, setAt] = useState<number | null>(null);
+  const eatenAt = () => (at == null ? Date.now() : Math.min(Date.now(), atMinutes(Date.now(), at)));
+  const recents = recentMeals(f, 10);
+  const logRecent = (r: { name: string; kcal: number; protein: number | null }) => {
+    const t = eatenAt();
+    saveMeal({ id: `m${t}`, t, name: r.name.trim(), kcal: r.kcal, protein: r.protein }, false);
+    onDone();
+  };
+
   // Food search (USDA FoodData Central)
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
@@ -333,7 +367,7 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
     const bad = mealProblem(name, k, protein.trim() === '' ? null : p);
     if (bad) return setProblem(bad);
     if (protein.trim() !== '' && p == null) return setProblem('Protein should be a number, or leave it empty.');
-    const meal: Meal = { id: initial?.id ?? `m${Date.now()}`, t: initial?.t ?? Date.now(), name: name.trim(), kcal: Math.round(k!), protein: p == null ? null : Math.round(p * 10) / 10 };
+    const meal: Meal = { id: initial?.id ?? `m${Date.now()}`, t: initial?.t ?? eatenAt(), name: name.trim(), kcal: Math.round(k!), protein: p == null ? null : Math.round(p * 10) / 10 };
     saveMeal(meal, keep);
     onDone();
   };
@@ -351,6 +385,49 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
             {initial ? 'Edit meal' : 'Add a meal'}
           </Hero>
         </View>
+
+        {!initial ? (
+          <Card pad={8}>
+            <Row
+              first
+              title="When did you eat?"
+              sub={at == null ? 'Tap to log a meal from earlier today' : 'Tap to change'}
+              right={
+                <T size={17} weight="bold" tint={color.yellow}>
+                  {at == null ? 'Now' : time12(Math.floor(at / 60), at % 60)}
+                </T>
+              }
+              onPress={() => {
+                const d = new Date();
+                tp.open(at == null ? d.getHours() : Math.floor(at / 60), at == null ? d.getMinutes() : at % 60, (h, m) => setAt(h * 60 + m));
+              }}
+            />
+          </Card>
+        ) : null}
+
+        {!initial && recents.length ? (
+          <View style={{ gap: 8 }}>
+            <T size={14} weight="semibold" tint={color.text2}>
+              Eaten before. Tap to log it
+            </T>
+            <Card pad={8}>
+              {recents.map((r, i) => (
+                <Pressable
+                  key={r.name}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Log ${r.name}, ${r.kcal} kcal`}
+                  onPress={() => logRecent(r)}
+                  style={({ pressed }) => ({ minHeight: 60, justifyContent: 'center', paddingHorizontal: 12, borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line, opacity: pressed ? 0.6 : 1 })}
+                >
+                  <T size={16} weight="semibold">
+                    {r.name}
+                  </T>
+                  <T size={13} tint={color.text2}>{`${r.kcal} kcal${r.protein != null ? `, ${r.protein} g protein` : ''}`}</T>
+                </Pressable>
+              ))}
+            </Card>
+          </View>
+        ) : null}
 
         {!initial ? (
           <View style={{ gap: 8 }}>
@@ -566,6 +643,84 @@ export function AddMealScreen({ api, initial, onDone }: { api: FoodApi; initial:
           />
         </View>
       </ScrollView>
+      {tp.sheet}
+    </View>
+  );
+}
+
+/* ---------- Meal times and reminders ---------- */
+
+export function MealTimesScreen({ api, onBack }: { api: FoodApi; onBack: () => void }) {
+  const { f, change } = api;
+  const r = f.remind;
+  const tp = useTimePicker('Meal time');
+  const set = (p: Partial<typeof r>) => change((x) => ({ ...x, remind: { ...x.remind, ...p } }));
+  const times = [...r.times].sort((a, b) => a - b);
+  const put = (list: number[]) => set({ times: Array.from(new Set(list)).sort((a, b) => a - b).slice(0, MAX_MEAL_TIMES) });
+
+  return (
+    <View style={{ flex: 1, backgroundColor: color.black }}>
+      <ScrollView contentContainerStyle={{ ...page, gap: 18 }}>
+        <View>
+          <Pressable accessibilityRole="button" onPress={onBack} style={{ minHeight: 48, justifyContent: 'center' }}>
+            <T size={16} weight="semibold" tint={color.text2}>
+              ‹ Food
+            </T>
+          </Pressable>
+          <Hero size={34} tint={color.text}>
+            Meal reminders
+          </Hero>
+        </View>
+
+        <Card pad={8}>
+          <Row first title="Remind me to eat and log" sub={`${times.length} ${times.length === 1 ? 'meal' : 'meals'} a day`} right={<Toggle on={r.enabled} onPress={() => set({ enabled: !r.enabled })} label="Meal reminders" />} />
+        </Card>
+
+        <View style={{ gap: 8 }}>
+          <T size={14} weight="semibold" tint={color.text2}>
+            Your meal times
+          </T>
+          <Card pad={8}>
+            {times.map((m, i) => (
+              <View key={m} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: i === 0 ? 0 : 1, borderColor: color.line, paddingHorizontal: 12 }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Meal ${i + 1} at ${time12(Math.floor(m / 60), m % 60)}. Change time`}
+                  onPress={() => tp.open(Math.floor(m / 60), m % 60, (h, mi) => put([...times.filter((x) => x !== m), h * 60 + mi]))}
+                  style={({ pressed }) => ({ flex: 1, minHeight: 56, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+                >
+                  <T size={17} weight="bold" tint={color.yellow}>
+                    {time12(Math.floor(m / 60), m % 60)}
+                  </T>
+                </Pressable>
+                {times.length > 1 ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${time12(Math.floor(m / 60), m % 60)}`} onPress={() => put(times.filter((x) => x !== m))} style={{ minHeight: 48, paddingHorizontal: 8, justifyContent: 'center' }}>
+                    <T size={14} weight="semibold" tint={color.text2}>
+                      Remove
+                    </T>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+          </Card>
+          {times.length < MAX_MEAL_TIMES ? (
+            <Button label="Add a meal time" bg={color.surface2} fg={color.text} height={54} onPress={() => tp.open(12, 0, (h, mi) => put([...times, h * 60 + mi]))} />
+          ) : (
+            <T size={13} tint={color.text2}>{`Up to ${MAX_MEAL_TIMES} meals a day.`}</T>
+          )}
+          {times.join() !== DEFAULT_MEAL_TIMES.join() ? <LinkButton label="Use 8:00 am, 1:00 pm, 8:00 pm" onPress={() => put(DEFAULT_MEAL_TIMES)} /> : null}
+        </View>
+
+        <Card pad={16} style={{ gap: 6 }}>
+          <T size={15} weight="bold">
+            How it works
+          </T>
+          <T size={14} tint={color.text2}>
+            You get one notification at each meal time and one more 30 minutes later if you have not logged a meal. If you logged in the hour before, it stays quiet. Tap it to open Add meal, where your past meals are one tap each.
+          </T>
+        </Card>
+      </ScrollView>
+      {tp.sheet}
     </View>
   );
 }
