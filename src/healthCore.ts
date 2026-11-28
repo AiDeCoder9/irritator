@@ -11,6 +11,9 @@ export type Session = {
   source: string;
   /** Distance in km when known. */
   km: number | null;
+  /** Average and highest heart rate during the session, when the watch recorded it. */
+  avgHr?: number | null;
+  maxHr?: number | null;
 };
 
 export const RUNNING = 56;
@@ -63,7 +66,8 @@ export function pickRun(sessions: Session[], since: number, now: number, minMinu
 /** "Ran 5.2 km in 31 min, from Fitbit" */
 export function runSummary(s: Session): string {
   const dist = s.km != null && s.km > 0 ? `${Math.round(s.km * 10) / 10} km in ` : '';
-  return `Ran ${dist}${minutesOf(s)} min, from ${sourceName(s.source)}`;
+  const hr = s.avgHr ? `, average ${Math.round(s.avgHr)} bpm` : '';
+  return `Ran ${dist}${minutesOf(s)} min${hr}, from ${sourceName(s.source)}`;
 }
 
 /** One line for the list on the Health Connect screen. */
@@ -74,3 +78,57 @@ export function sessionLine(s: Session): string {
 
 /** Whether a session counts as a run for the minimum length. Used to explain why a short one was skipped. */
 export const isShortRun = (s: Session, minMinutes = 10) => RUN_TYPES.includes(s.type) && minutesOf(s) < minMinutes;
+
+/* ---------- sleep, weight, heart rate ---------- */
+
+export type SleepRec = { start: number; end: number; stages: { start: number; end: number; stage: number }[] };
+
+// Health Connect sleep stage numbers that count as asleep: sleeping 2, light 4, deep 5, REM 6.
+const ASLEEP = [2, 4, 5, 6];
+
+/** Minutes actually asleep in one sleep record. Uses the stages when there are any, otherwise the whole span. */
+export function asleepMinutes(r: SleepRec): number {
+  if (!r.stages.length) return Math.max(0, Math.round((r.end - r.start) / 60_000));
+  const ms = r.stages.filter((s) => ASLEEP.includes(s.stage)).reduce((a, s) => a + Math.max(0, s.end - s.start), 0);
+  return Math.round(ms / 60_000);
+}
+
+const ymdOf = (t: number) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Records of 3 hours asleep or more count as a night's sleep (shorter ones are naps). */
+export const NIGHT_MIN = 180;
+
+/** Sleep per night, keyed by the local date the sleep ended on. Two records ending the same day are added up. */
+export function nightsOf(recs: SleepRec[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of recs) {
+    const m = asleepMinutes(r);
+    if (m < NIGHT_MIN) continue;
+    const k = ymdOf(r.end);
+    out[k] = (out[k] ?? 0) + m;
+  }
+  return out;
+}
+
+/** "6 h 40 min", "7 h", "45 min". */
+export function sleepText(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
+/** Add weigh-ins from Health Connect for days that have none yet. Your own entries are never replaced. Returns the same array when nothing is new. */
+export function mergeWeights<T extends { t: number; kg: number }>(log: T[], recs: { t: number; kg: number }[]): { t: number; kg: number }[] {
+  const have = new Set(log.map((e) => ymdOf(e.t)));
+  const add: { t: number; kg: number }[] = [];
+  for (const r of [...recs].sort((a, b) => a.t - b.t)) {
+    const k = ymdOf(r.t);
+    if (have.has(k) || r.kg < 30 || r.kg > 250) continue;
+    have.add(k);
+    add.push({ t: r.t, kg: Math.round(r.kg * 10) / 10 });
+  }
+  return add.length ? [...log, ...add].sort((a, b) => a.t - b.t) : log;
+}

@@ -1,5 +1,6 @@
 import { ScrollView, View } from 'react-native';
 
+import { sleepText } from './healthCore';
 import type { Review } from './reviewCore';
 import { color } from './theme';
 import { Card, Hero, LinkButton, T, topInset } from './ui';
@@ -69,6 +70,7 @@ export function ReviewScreen({ r, onBack }: { r: Review; onBack: () => void }) {
               <Line label="Water goal" value={`${r.waterDays} of 7`} sub="Days you hit it" />
               <Line label="Food logged" value={`${r.foodLogged} of 7`} sub={r.foodLogged ? `${r.foodClose} close to target${r.avgKcal ? `, ${r.avgKcal} kcal average` : ''}` : 'Days with a meal logged'} />
               {r.weightChange != null ? <Line label="Weight" value={`${r.weightChange > 0 ? '+' : ''}${r.weightChange} kg`} sub="First to last weigh-in this week" /> : null}
+              {r.sleepAvgMin != null ? <Line label="Sleep" value={sleepText(r.sleepAvgMin)} sub={`Average over ${r.sleepNights} night${r.sleepNights === 1 ? '' : 's'} from your watch`} /> : null}
               <Line label="Days in a row" value={String(r.streak)} />
             </Card>
           </>

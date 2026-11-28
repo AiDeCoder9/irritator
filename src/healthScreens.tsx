@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
-import { connectHealth, hasHealthAccess, healthStatus, HealthStatus, manageHealth, recentSessions, Session, sessionLine, stepsSince, typeName } from './health';
+import { connectHealth, grantedTypes, hasHealthAccess, healthStatus, HealthStatus, manageHealth, recentSessions, Session, sessionLine, stepsSince, typeName } from './health';
 import { dayName, timeText } from './phase';
 import { color } from './theme';
 import { Button, Card, Hero, LinkButton, T, topInset } from './ui';
@@ -14,6 +14,7 @@ export function HealthScreen({ onBack }: { onBack: () => void }) {
   const [access, setAccess] = useState(false);
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [steps, setSteps] = useState<number | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -27,6 +28,8 @@ export function HealthScreen({ onBack }: { onBack: () => void }) {
       const ok = await hasHealthAccess();
       setAccess(ok);
       if (!ok) return;
+      const got = await grantedTypes();
+      setMissing(['SleepSession', 'Weight', 'ActiveCaloriesBurned', 'HeartRate'].filter((t) => !got.includes(t)));
       const now = Date.now();
       const midnight = new Date(now);
       midnight.setHours(0, 0, 0, 0);
@@ -47,7 +50,7 @@ export function HealthScreen({ onBack }: { onBack: () => void }) {
     setBusy(true);
     const ok = await connectHealth();
     setAccess(ok);
-    if (!ok) setProblem('Not allowed yet. Tap Connect and allow exercise, steps and distance.');
+    if (!ok) setProblem('Not allowed yet. Tap Connect and allow at least exercise, steps and distance.');
     setBusy(false);
     if (ok) load();
   };
@@ -102,11 +105,22 @@ export function HealthScreen({ onBack }: { onBack: () => void }) {
           <View style={{ gap: 10 }}>
             <Button label="Connect Health Connect" onPress={connect} disabled={busy} />
             <T size={14} tint={color.text2}>
-              Android will ask you to allow exercise, steps and distance. You can take it back any time in Health Connect.
+              Android will ask you to allow exercise, steps, distance, sleep, weight, calories burned and heart rate. You can allow only some. You can take it back any time in Health Connect.
             </T>
           </View>
         ) : (
           <View style={{ gap: 12 }}>
+            {missing.length ? (
+              <Card pad={16} style={{ gap: 10 }}>
+                <T size={15} weight="bold">
+                  More from your watch
+                </T>
+                <T size={14} tint={color.text2}>
+                  Sleep shows on Today and in your weekly review. Weight fills your weight chart. Calories burned shows on the food card. Heart rate is added to a run you log. Allow any you like.
+                </T>
+                <Button label="Allow sleep, weight and more" onPress={connect} disabled={busy} />
+              </Card>
+            ) : null}
             <Card pad={16} style={{ gap: 4 }}>
               <T size={14} weight="semibold" tint={color.text2}>
                 Steps today

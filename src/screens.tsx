@@ -49,6 +49,7 @@ export function TodayScreen({
   sleepText,
   water,
   onWater,
+  burned,
 }: {
   s: State;
   now: number;
@@ -57,6 +58,7 @@ export function TodayScreen({
   onFood?: () => void;
   sleepText?: string | null;
   water?: { text: string };
+  burned?: number | null;
   onWater?: () => void;
   onToggle: () => void;
   onTest: () => void;
@@ -186,6 +188,11 @@ export function TodayScreen({
               <T size={14} tint={color.text2}>
                 {food.eaten > food.target ? `${food.eaten - food.target} over.` : `${food.target - food.eaten} left.`} Tap to log a meal.
               </T>
+              {burned ? (
+                <T size={13} tint={color.text2}>
+                  {`Your watch counts ${burned} active kcal burned so far. Your target does not change.`}
+                </T>
+              ) : null}
             </Card>
           </Pressable>
         ) : null}

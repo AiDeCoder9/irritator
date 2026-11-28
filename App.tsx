@@ -7,7 +7,7 @@ import { Sora_800ExtraBold } from '@expo-google-fonts/sora';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { AppState, Platform, Pressable, Text, View } from 'react-native';
 
 import {
   cancelAlarm,
@@ -44,7 +44,7 @@ import { loadState, saveState, State } from './src/store';
 import { color, font } from './src/theme';
 import { FadeIn, TabBar, topInset, useNow } from './src/ui';
 import { HealthScreen } from './src/healthScreens';
-import { findRecentRun, runSummary } from './src/health';
+import { findRecentRun, HealthData, mergeWeights, readHealthData, runSummary, sleepText } from './src/health';
 import { AddMealScreen, FastingScreen, FoodScreen, PlanScreen, TargetsScreen, useFood } from './src/foodScreens';
 import { dayTypeOf, Meal, targetFor, totalsOf } from './src/food';
 import { ProgressScreen } from './src/progressScreen';
@@ -86,6 +86,35 @@ export default function App() {
   const now = useNow(1000);
   const water = useWater();
   const food = useFood();
+
+  // Extras from Health Connect (sleep, weight, calories burned). Read at start, when the app comes back, and every 10 minutes.
+  const [hd, setHd] = useState<HealthData | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    let alive = true;
+    const load = () =>
+      readHealthData()
+        .then((d) => alive && setHd(d))
+        .catch(() => {});
+    load();
+    const sub = AppState.addEventListener('change', (st) => st === 'active' && load());
+    const id = setInterval(load, 10 * 60_000);
+    return () => {
+      alive = false;
+      sub.remove();
+      clearInterval(id);
+    };
+  }, []);
+  // Weigh-ins from a scale or watch fill days you did not weigh yourself. Your own entries are never replaced.
+  const changeWeights = water.change;
+  useEffect(() => {
+    if (!hd?.weights.length) return;
+    changeWeights((x) => {
+      const merged = mergeWeights(x.weightLog, hd.weights);
+      return merged === x.weightLog ? x : { ...x, weightLog: merged, weightKg: merged[merged.length - 1].kg };
+    });
+  }, [hd, changeWeights]);
+  const lastNight = hd?.nights[ymd(Date.now())];
   const [editMeal, setEditMeal] = useState<Meal | null>(null);
   const foodToday = totalsOf(food.f, now);
   const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
@@ -402,6 +431,7 @@ export default function App() {
             kcalOn: (ts) => food.f.meals.filter((m) => ymd(m.t) === ymd(ts)).reduce((a, m) => a + m.kcal, 0),
             kcalTargetOn: (ts) => targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, ts)).kcal,
             weightLog: water.w.weightLog,
+            sleepOn: (ts) => hd?.nights[ymd(ts)] ?? null,
           })}
         />
       ) : route === 'progress' ? (
@@ -438,7 +468,8 @@ export default function App() {
           onPlaces={() => go('places', 'today')}
           food={{ eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
           onFood={() => setRoute('food')}
-          sleepText={sleepLine(state, now)}
+          sleepText={[sleepLine(state, now), lastNight ? `Slept ${sleepText(lastNight)} last night.` : null].filter(Boolean).join(' ') || null}
+          burned={hd?.activeKcal ?? null}
           water={{ text: `${mlText(totalOf(water.w, now))} of ${mlText(goalOf(water.w, now))}` }}
           onWater={() => setRoute('water')}
         />

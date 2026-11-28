@@ -15,6 +15,8 @@ export type ReviewInput = {
   kcalOn: (ts: number) => number;
   kcalTargetOn: (ts: number) => number;
   weightLog: WeightEntry[];
+  /** Minutes asleep the night ending on that day, or null when unknown. Optional. */
+  sleepOn?: (ts: number) => number | null;
 };
 
 export type Review = {
@@ -29,6 +31,9 @@ export type Review = {
   foodClose: number;
   avgKcal: number | null;
   weightChange: number | null;
+  /** Average sleep over nights that have a record, and how many nights that was. */
+  sleepAvgMin: number | null;
+  sleepNights: number;
   streak: number;
   hasData: boolean;
   good: string | null;
@@ -70,6 +75,8 @@ export function weekReview(i: ReviewInput): Review {
 
   const w = i.weightLog.filter((x) => x.t >= i.now - 8 * DAY && x.t <= i.now).sort((a, b) => a.t - b.t);
   const weightChange = w.length >= 2 ? Math.round((w[w.length - 1].kg - w[0].kg) * 10) / 10 : null;
+
+  const nights = i.sleepOn ? stamps.map((ts) => i.sleepOn!(ts)).filter((m): m is number => m != null) : [];
 
   const hasData = gymScheduled > 0 || waterDays > 0 || foodLogged > 0;
 
@@ -118,6 +125,8 @@ export function weekReview(i: ReviewInput): Review {
     foodClose,
     avgKcal: foodLogged ? Math.round(kcalSum / foodLogged) : null,
     weightChange,
+    sleepAvgMin: nights.length ? Math.round(nights.reduce((a, b) => a + b, 0) / nights.length) : null,
+    sleepNights: nights.length,
     streak: i.streak,
     hasData,
     good,
