@@ -1,11 +1,36 @@
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { isMinor, type Food } from './foodCore';
 import { goalLine, goalPlan, goalProblem, HEALTH_FLAGS, safetyOf, type HealthFlag } from './goalCore';
-import { color } from './theme';
-import { Button, Card, Chip, Hero, LinkButton, Stepper, T, topInset } from './ui';
+import { color, font } from './theme';
+import { Button, Card, Hero, LinkButton, Stepper, T, topInset } from './ui';
 
 type Api = { f: Food; change: (fn: (f: Food) => Food) => void };
+
+function Option({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: on }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 52,
+        borderRadius: 16,
+        paddingHorizontal: 18,
+        backgroundColor: on ? color.yellow : color.surface2,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        transform: [{ scale: pressed ? 0.98 : 1 }],
+      })}
+    >
+      <Text style={{ flex: 1, fontFamily: font.semibold, fontSize: 16, color: on ? color.ink : color.text }}>{label}</Text>
+      <Text style={{ fontFamily: font.bold, fontSize: 18, color: color.ink }}>{on ? '✓' : ''}</Text>
+    </Pressable>
+  );
+}
 
 /** The safety questions. Shown once, and any time from Settings. */
 export function SafetyScreen({ api, onBack, first }: { api: Api; onBack: () => void; first: boolean }) {
@@ -40,11 +65,11 @@ export function SafetyScreen({ api, onBack, first }: { api: Api; onBack: () => v
         <T size={15} tint={color.text2}>
           This app gives calorie numbers and a fasting timer. Do any of these apply to you? Pick all that do. The answer stays on your phone.
         </T>
-        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        <View style={{ gap: 8 }}>
           {HEALTH_FLAGS.map((h) => (
-            <Chip key={h.id} label={h.label} on={tg.health.includes(h.id)} onPress={() => toggle(h.id)} />
+            <Option key={h.id} label={h.label} on={tg.health.includes(h.id)} onPress={() => toggle(h.id)} />
           ))}
-          <Chip label="None of these" on={tg.health.length === 0} onPress={none} />
+          <Option label="None of these" on={tg.health.length === 0} onPress={none} />
         </View>
         {safety.notice ? (
           <Card pad={16} style={{ gap: 6 }}>
