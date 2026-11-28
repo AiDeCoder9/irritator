@@ -5,6 +5,7 @@ import { lastDays, statsOf, ymd, type Cell } from './progressCore';
 import type { State } from './store';
 import { color, font } from './theme';
 import { Button, Card, Chevron, Hero, LinkButton, Row, T, topInset } from './ui';
+import { formOf } from './formCore';
 import { nudgeFor, weightChange, weightRate } from './weightCore';
 import { MIN_KCAL, isMinor, suggestedRestKcal, type Targets } from './foodCore';
 import { goalOf, type Water } from './waterCore';
@@ -59,6 +60,26 @@ function Stat({ value, label, sub }: { value: string; label: string; sub?: strin
 }
 
 const DAYMS = 86_400_000;
+
+function FormCard({ s, now }: { s: State; now: number }) {
+  const f = formOf(s.history, s.days, now);
+  return (
+    <Card pad={18} style={{ gap: 8 }}>
+      <T size={14} weight="semibold" tint={color.text2}>
+        Form
+      </T>
+      <Hero size={44} tint={color.text} fit>
+        {f.hasHistory ? `${f.score} / 100` : '50 / 100'}
+      </Hero>
+      <View style={{ height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' }}>
+        <View style={{ width: `${f.score}%`, height: 8, backgroundColor: color.yellow }} />
+      </View>
+      <T size={14} tint={color.text2}>
+        A day done adds 5. A scheduled day missed takes 3, then 5, 7 and up to 11 if you keep missing. After 2 missed days in a row, your first day back adds 8. Excused days and rest days change nothing. It is a motivation score, not a fitness test.
+      </T>
+    </Card>
+  );
+}
 
 function WeightCard({ water, targets, now, onLogWeight, onApply }: { water: Water; targets: Targets; now: number; onLogWeight: (kg: number) => void; onApply: (delta: number) => void }) {
   const [text, setText] = useState('');
@@ -204,6 +225,8 @@ export function ProgressScreen({
           <Stat value={`${waterDays} of 7`} label="Water goal" sub="Days you hit your goal" />
           <Stat value={String(st.runs)} label="Runs" sub="Logged in the last 28 days" />
         </View>
+
+        <FormCard s={s} now={now} />
 
         <WeightCard water={water} targets={targets} now={now} onLogWeight={onLogWeight} onApply={onApply} />
 

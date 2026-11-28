@@ -1,6 +1,7 @@
 import { travelOf } from './gym';
 import { kindOf } from './kinds';
 import type { State } from './store';
+import { formOf } from './formCore';
 
 export const MESSAGE_EVERY_MIN = 5;
 
@@ -42,7 +43,16 @@ export function levelAt(dismissedAt: number, ts: number) {
   return Math.max(0, Math.floor((ts - dismissedAt) / (MESSAGE_EVERY_MIN * 60_000)));
 }
 
+/** After 2 or more missed days the first messages ask for less, not more. */
+const COMEBACK: ((n: number, gain: number) => string)[] = [
+  (n) => `${n} days missed. Today is not about a perfect session. Just get there.`,
+  (_n, g) => `Your first day back is worth ${g} form instead of 5. Fifteen minutes is enough.`,
+  () => 'You did this before. The only job right now is the door.',
+];
+
 export function messageFor(level: number, s: State) {
+  const f = formOf(s.history, s.days, Date.now());
+  if (f.comeback && level < COMEBACK.length) return COMEBACK[level](f.missRun, f.gainToday);
   const ladder = kindOf(s) === 'run' ? RUN_LADDER : LADDER;
   const i = level < ladder.length ? level : ladder.length - 3 + ((level - ladder.length) % 3);
   return ladder[i]({ day: s.streak + 1, streak: s.streak, reason: s.reason, travelMin: travelOf(s) });

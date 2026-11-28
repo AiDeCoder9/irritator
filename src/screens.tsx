@@ -6,6 +6,7 @@ import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-na
 import { activeGym, travelOf } from './gym';
 import { kindOf } from './kinds';
 import { levelAt, messageFor } from './motivation';
+import { formOf, skipLine } from './formCore';
 import { clockText, DAY_NAMES, dayName, inText, leaveByOf, leftHomeOf, pad, time12, timeOnDay, timeText } from './phase';
 import { Places } from './places';
 import { WeekPlan } from './weekPlan';
@@ -35,6 +36,44 @@ function Back({ label, onPress }: { label: string; onPress: () => void }) {
 }
 
 /* ---------- Today: tomorrow's alarm and nothing else ---------- */
+
+
+/** Today's form meter, or the comeback card after two or more missed days. Nothing until there is some history. */
+function formCard(s: State, now: number) {
+  const f = formOf(s.history, s.days, now);
+  if (!f.hasHistory) return null;
+  if (f.comeback) {
+    return (
+      <Card bg={color.yellow} pad={18} style={{ gap: 4 }}>
+        <T size={14} weight="bold" tint={color.inkSoft}>
+          Comeback day
+        </T>
+        <T size={20} weight="bold" tint={color.ink}>
+          {`${f.missRun} days missed. Today only needs one thing: show up.`}
+        </T>
+        <T size={14} tint={color.inkSoft}>
+          {`Even 15 minutes counts and restarts your streak. Your first day back is worth ${f.gainToday} form, not 5. Form is ${f.score} now.`}
+        </T>
+      </Card>
+    );
+  }
+  return (
+    <Card pad={18} style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <T size={14} weight="semibold" tint={color.text2}>
+          Form
+        </T>
+        <T size={20} weight="bold">{`${f.score} / 100`}</T>
+      </View>
+      <View style={{ height: 8, borderRadius: 4, backgroundColor: color.surface2, overflow: 'hidden' }}>
+        <View style={{ width: `${f.score}%`, height: 8, backgroundColor: color.yellow }} />
+      </View>
+      <T size={13} tint={color.text2}>
+        {`Skip a day and it drops ${f.skipCost}. Go and it rises ${f.gainToday}.`}
+      </T>
+    </Card>
+  );
+}
 
 export function TodayScreen({
   s,
@@ -136,6 +175,8 @@ export function TodayScreen({
             </T>
           </Pressable>
         </Card>
+
+        {formCard(s, now)}
 
         {nextRun ? (
           <Card pad={18} style={{ gap: 4 }}>
@@ -703,6 +744,9 @@ export function TakeoverScreen({
       <T size={15} weight="semibold">
         Skipping today? Say why.
       </T>
+      <T size={14} tint={color.yellow}>
+        {skipLine(formOf(s.history, s.days, now))}
+      </T>
       <TextInput
         value={why}
         onChangeText={setWhy}
@@ -752,6 +796,7 @@ export function ClearedScreen({ s, onClose, wasRun }: { s: State; onClose: () =>
           {String(s.streak)}
         </Hero>
         <T size={18}>in a row. No more reminders until tomorrow.</T>
+        <T size={15} tint={color.text2}>{`Form ${formOf(s.history, s.days, Date.now()).score} / 100.`}</T>
       </View>
 
       <View style={{ flex: 1 }} />
