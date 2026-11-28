@@ -85,6 +85,8 @@ export function TodayScreen({
   onPlaces,
   food,
   onFood,
+  safetyPrompt,
+  onSafety,
   sleepText,
   water,
   onWater,
@@ -95,6 +97,9 @@ export function TodayScreen({
   notes: string[];
   food?: { eaten: number; target: number; day: string };
   onFood?: () => void;
+  /** Show the one-time safety question card. */
+  safetyPrompt?: boolean;
+  onSafety?: () => void;
   sleepText?: string | null;
   water?: { text: string };
   burned?: number | null;
@@ -215,6 +220,19 @@ export function TodayScreen({
           <T size={15} tint={color.text2}>
             {sleepText}
           </T>
+        ) : null}
+
+        {safetyPrompt && onSafety ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Health and safety questions" onPress={onSafety} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+            <Card pad={18} style={{ gap: 4 }}>
+              <T size={17} weight="bold">
+                One quick question
+              </T>
+              <T size={14} tint={color.text2}>
+                This app shows calorie numbers. Tell it about any health condition first, so it shows only what is safe for you. Tap to answer.
+              </T>
+            </Card>
+          </Pressable>
         ) : null}
 
         {food && onFood ? (
@@ -390,6 +408,7 @@ export function SettingsScreen({
   onBattery,
   onSetup,
   onHealth,
+  onSafety,
 }: {
   s: State;
   onChange: Patch;
@@ -398,6 +417,7 @@ export function SettingsScreen({
   onBattery: () => void;
   onSetup: () => void;
   onHealth: () => void;
+  onSafety: () => void;
 }) {
   return (
     <View style={{ flex: 1, backgroundColor: color.black }}>
@@ -497,6 +517,7 @@ export function SettingsScreen({
         <Card pad={8}>
           <Row first title="Keep the alarm reliable" sub="Samsung: Battery, Never sleeping apps" right={<Chevron />} onPress={onBattery} />
           {Platform.OS === 'android' ? <Row title="Health Connect" sub="Count runs from your watch" right={<Chevron />} onPress={onHealth} /> : null}
+          <Row title="Health and safety" sub="Conditions that change what the app shows" right={<Chevron />} onPress={onSafety} />
           <Row title="Run setup again" right={<Chevron />} onPress={onSetup} />
         </Card>
       </ScrollView>
@@ -702,6 +723,7 @@ export function TakeoverScreen({
   onSkip,
   onExcuse,
   onBack,
+  goalText,
 }: {
   s: State;
   now: number;
@@ -710,6 +732,8 @@ export function TakeoverScreen({
   onExcuse: () => void;
   /** Set when you opened this screen yourself to skip. */
   onBack?: () => void;
+  /** Goal weight and what skipping does to its date. Null when no goal is set. */
+  goalText?: string | null;
 }) {
   useKeepAwake();
   const [why, setWhy] = useState('');
@@ -757,6 +781,11 @@ export function TakeoverScreen({
       <T size={14} tint={color.yellow}>
         {skipLine(formOf(s.history, s.days, now))}
       </T>
+      {goalText ? (
+        <T size={14} tint={color.yellow}>
+          {goalText}
+        </T>
+      ) : null}
       <TextInput
         value={why}
         onChangeText={setWhy}

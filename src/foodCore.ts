@@ -1,5 +1,7 @@
 // Pure food logic: meals, totals, fasting window, scaling. No storage and no network, so it can be tested alone.
 
+import type { HealthFlag } from './goalCore';
+
 export type Meal = { id: string; t: number; name: string; kcal: number; protein: number | null };
 export type Saved = { id: string; name: string; kcal: number; protein: number | null };
 export type Fast = {
@@ -24,6 +26,12 @@ export type Targets = {
   restKcal: number | null;
   /** When the weight-trend suggestion was last answered. Only weigh-ins after this count toward the next one. */
   lastAdjust: number | null;
+  /** Goal weight in kg for a goal date. null means none. */
+  goalKg: number | null;
+  /** Health conditions chosen in the safety questions. */
+  health: HealthFlag[];
+  /** True once the safety questions were answered (including "none of these"). */
+  healthAsked: boolean;
 };
 export type Food = { meals: Meal[]; saved: Saved[]; fast: Fast; fdcKey: string; targets: Targets };
 
@@ -33,7 +41,7 @@ export const foodDefaults: Food = {
   meals: [],
   saved: [],
   fdcKey: '',
-  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null },
+  targets: { goal: 'maintain', sex: null, age: null, heightCm: null, restKcal: null, lastAdjust: null, goalKg: null, health: [], healthAsked: false },
   fast: { enabled: false, openHour: 12, openMinute: 0, eatHours: 8, notify: true },
 };
 

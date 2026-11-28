@@ -38,6 +38,8 @@ import {
 import { time12, timeText } from './phase';
 import { dishesAsSaved, findDishes, scaleDish, type Dish } from './localFoods';
 import { useTimePicker } from './timePicker';
+import { safetyOf } from './goalCore';
+import { GoalWeightCard } from './goalScreens';
 import { color, font } from './theme';
 import { Button, Card, Chevron, Chip, Hero, LinkButton, Row, Stepper, T, Toggle, topInset } from './ui';
 
@@ -132,6 +134,11 @@ export function FoodScreen({
         <Hero size={30} tint={color.text}>
           Food
         </Hero>
+        {safetyOf(f.targets.health).notice ? (
+          <T size={14} weight="semibold" tint={color.yellow}>
+            {safetyOf(f.targets.health).notice}
+          </T>
+        ) : null}
 
         <Pressable accessibilityRole="button" onPress={onFasting} style={({ pressed }) => ({ transform: [{ scale: pressed ? 0.98 : 1 }] })}>
           {f.fast.enabled ? (
@@ -665,6 +672,16 @@ export function TargetsScreen({ api, weightKg, onBack }: { api: FoodApi; weightK
             {`Changing the goal resets rest-day calories to the estimate (${GOAL_KCAL[tg.goal] >= 0 ? '+' : ''}${GOAL_KCAL[tg.goal]} kcal for this goal).`}
           </T>
         </View>
+
+        {safetyOf(tg.health).notice ? (
+          <Card pad={16}>
+            <T size={14} weight="semibold" tint={color.yellow}>
+              {safetyOf(tg.health).notice}
+            </T>
+          </Card>
+        ) : null}
+
+        {safetyOf(tg.health).hideWeight ? null : <GoalWeightCard api={api} weightKg={weightKg} />}
 
         <Card pad={16} style={{ gap: 12 }}>
           <T size={15} weight="bold">

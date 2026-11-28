@@ -9,6 +9,7 @@ import { formOf } from './formCore';
 import { nudgeFor, weightChange, weightRate } from './weightCore';
 import { MIN_KCAL, isMinor, suggestedRestKcal, type Targets } from './foodCore';
 import { goalOf, type Water } from './waterCore';
+import { goalLine, goalPlan, goalProblem, safetyOf } from './goalCore';
 
 const DAY = 86_400_000;
 
@@ -137,7 +138,7 @@ function WeightCard({ water, targets, now, onLogWeight, onApply }: { water: Wate
           <Button label="Save today" onPress={save} disabled={!valid} height={52} />
         </View>
       </View>
-      {nudge.kind === 'up' || nudge.kind === 'down' ? (
+      {safetyOf(targets.health).noSuggest ? null : nudge.kind === 'up' || nudge.kind === 'down' ? (
         due ? (
           <View style={{ gap: 8 }}>
             <T size={15}>{nudge.message}</T>
@@ -157,6 +158,27 @@ function WeightCard({ water, targets, now, onLogWeight, onApply }: { water: Wate
           {nudge.message}
         </T>
       )}
+    </Card>
+  );
+}
+
+function GoalCard({ water, targets, now }: { water: Water; targets: Targets; now: number }) {
+  const kg = targets.goalKg;
+  if (kg == null) return null;
+  const w = water.weightKg;
+  const bad = goalProblem({ goalKg: kg, weightKg: w, heightCm: targets.heightCm, goal: targets.goal, minor: isMinor(targets) });
+  const plan = !bad && w != null ? goalPlan({ goalKg: kg, weightKg: w, goal: targets.goal, now }) : null;
+  return (
+    <Card pad={18} style={{ gap: 6 }}>
+      <T size={14} weight="semibold" tint={color.text2}>
+        Goal weight
+      </T>
+      <Hero size={36} tint={color.text} fit>
+        {`${kg} kg`}
+      </Hero>
+      <T size={15} tint={bad ? color.yellow : color.text2}>
+        {bad ?? goalLine(plan, kg)}
+      </T>
     </Card>
   );
 }
@@ -228,7 +250,12 @@ export function ProgressScreen({
 
         <FormCard s={s} now={now} />
 
-        <WeightCard water={water} targets={targets} now={now} onLogWeight={onLogWeight} onApply={onApply} />
+        {safetyOf(targets.health).hideWeight ? null : (
+          <>
+            <WeightCard water={water} targets={targets} now={now} onLogWeight={onLogWeight} onApply={onApply} />
+            <GoalCard water={water} targets={targets} now={now} />
+          </>
+        )}
 
         <Card pad={8}>
           <Row first title="Weekly review" sub="The last 7 days in one place" right={<Chevron />} onPress={onReview} />

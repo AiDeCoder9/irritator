@@ -60,9 +60,12 @@ import { ymd } from './src/progressCore';
 import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
 import { suggestedRestKcal } from './src/food';
+import { goalPlan, goalProblem, goalSkipLine, safetyOf } from './src/goalCore';
+import { SafetyScreen } from './src/goalScreens';
+import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -128,6 +131,15 @@ export default function App() {
   const foodToday = totalsOf(food.f, now);
   const foodTarget = targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, now));
   const foodDay = { gym: 'Gym day', run: 'Run day', rest: 'Rest day' }[dayTypeOf(state.days, state.kinds, now)];
+  const safety = safetyOf(food.f.targets.health);
+  // The goal line on the skip screen. Needs a usable goal weight, your weight, and a goal of lose or build.
+  const goalText = (() => {
+    const t = food.f.targets;
+    const w = water.w.weightKg;
+    if (safety.hideWeight || t.goalKg == null || w == null) return null;
+    if (goalProblem({ goalKg: t.goalKg, weightKg: w, heightCm: t.heightCm, goal: t.goal, minor: isMinor(t) })) return null;
+    return goalSkipLine(goalPlan({ goalKg: t.goalKg, weightKg: w, goal: t.goal, now: Date.now() }), t.goalKg, state.days.filter(Boolean).length);
+  })();
   const missing = useRef(false);
 
   // Bedtime reminders follow the alarm. Redo them whenever the alarm, days or sleep hours change.
@@ -374,6 +386,7 @@ export default function App() {
             })
           }
           onBack={() => setSkipping(false)}
+          goalText={goalText}
         />
       ) : (
         <CountdownScreen
@@ -400,6 +413,7 @@ export default function App() {
             })
           }
           onBack={() => setSkipping(false)}
+          goalText={goalText}
         />
       ) : (
         <OnWayScreen
@@ -461,7 +475,10 @@ export default function App() {
           onSetup={() => setSetup(true)}
           onBattery={() => run(async () => openBatterySettings())}
           onHealth={() => setRoute('health')}
+          onSafety={() => setRoute('safety')}
         />
+      ) : route === 'safety' ? (
+        <SafetyScreen api={food} first={!food.f.targets.healthAsked} onBack={() => setRoute(food.f.targets.healthAsked ? 'settings' : 'today')} />
       ) : route === 'health' ? (
         <HealthScreen onBack={() => setRoute('settings')} />
       ) : route === 'food' ? (
@@ -514,7 +531,8 @@ export default function App() {
             waterGoalOn: (ts) => goalOf(water.w, ts),
             kcalOn: (ts) => food.f.meals.filter((m) => ymd(m.t) === ymd(ts)).reduce((a, m) => a + m.kcal, 0),
             kcalTargetOn: (ts) => targetFor(food.f.targets, water.w.weightKg, dayTypeOf(state.days, state.kinds, ts)).kcal,
-            weightLog: water.w.weightLog,
+            weightLog: safety.hideWeight ? [] : water.w.weightLog,
+            foodOff: safety.hideFood,
             sleepOn: (ts) => hd?.nights[ymd(ts)] ?? null,
           })}
         />
@@ -550,8 +568,10 @@ export default function App() {
           onTest={onTest}
           onSchedule={() => go('schedule', 'today')}
           onPlaces={() => go('places', 'today')}
-          food={{ eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
+          food={safety.hideFood ? undefined : { eaten: foodToday.kcal, target: foodTarget.kcal, day: foodDay }}
           onFood={() => setRoute('food')}
+          safetyPrompt={!food.f.targets.healthAsked}
+          onSafety={() => setRoute('safety')}
           sleepText={[sleepLine(state, now), lastNight ? `Slept ${sleepText(lastNight)} last night.` : null].filter(Boolean).join(' ') || null}
           burned={hd?.activeKcal ?? null}
           water={{ text: `${mlText(totalOf(water.w, now))} of ${mlText(goalOf(water.w, now))}` }}

@@ -12,6 +12,8 @@ export type ReviewInput = {
   streak: number;
   waterTotalOn: (ts: number) => number;
   waterGoalOn: (ts: number) => number;
+  /** True when food is turned off for safety: no food area, no food line. */
+  foodOff?: boolean;
   kcalOn: (ts: number) => number;
   kcalTargetOn: (ts: number) => number;
   weightLog: WeightEntry[];
@@ -31,6 +33,7 @@ export type Review = {
   foodClose: number;
   avgKcal: number | null;
   weightChange: number | null;
+  foodOff: boolean;
   /** Average sleep over nights that have a record, and how many nights that was. */
   sleepAvgMin: number | null;
   sleepNights: number;
@@ -97,7 +100,7 @@ export function weekReview(i: ReviewInput): Review {
     good: `You hit your water goal on ${plural(waterDays, 'day')}`,
     focus: `Water goal was hit on ${waterDays} of 7 days. A drink when you wake up is the easiest fix`,
   });
-  areas.push({
+  if (!i.foodOff) areas.push({
     name: 'food',
     ratio: foodLogged / 7,
     good: `You logged food on ${plural(foodLogged, 'day')}`,
@@ -125,6 +128,7 @@ export function weekReview(i: ReviewInput): Review {
     foodClose,
     avgKcal: foodLogged ? Math.round(kcalSum / foodLogged) : null,
     weightChange,
+    foodOff: !!i.foodOff,
     sleepAvgMin: nights.length ? Math.round(nights.reduce((a, b) => a + b, 0) / nights.length) : null,
     sleepNights: nights.length,
     streak: i.streak,
