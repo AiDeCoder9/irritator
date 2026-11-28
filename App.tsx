@@ -61,12 +61,13 @@ import { weekReview } from './src/reviewCore';
 import { ReviewScreen } from './src/reviewScreen';
 import { suggestedRestKcal } from './src/food';
 import { goalPlan, goalProblem, goalSkipLine, safetyOf } from './src/goalCore';
+import { BackupScreen } from './src/backupScreen';
 import { StarterScreen, StarterSettingsScreen, useStarter } from './src/starterScreens';
 import { CommitScreen, GoalsScreen, SafetyScreen } from './src/goalScreens';
 import { isMinor } from './src/food';
 import { useWater, WaterScreen, WaterSettingsScreen } from './src/waterScreens';
 
-type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'starterSettings' | 'mealTimes' | 'goals' | 'commit' | 'safety' | 'settings' | 'schedule' | 'places';
+type Route = 'today' | 'food' | 'addMeal' | 'fasting' | 'targets' | 'plan' | 'health' | 'water' | 'progress' | 'review' | 'waterSettings' | 'starterSettings' | 'backup' | 'mealTimes' | 'goals' | 'commit' | 'safety' | 'settings' | 'schedule' | 'places';
 
 function message(e: unknown) {
   return e instanceof Error ? e.message : String(e);
@@ -489,6 +490,8 @@ export default function App() {
             if (!food.f.targets.healthAsked) setRoute('safety');
           }}
         />
+      ) : route === 'backup' ? (
+        <BackupScreen onBack={() => setRoute('settings')} />
       ) : route === 'starterSettings' ? (
         <StarterSettingsScreen api={starter} onBack={() => setRoute('settings')} onPermissions={ensurePermissions} />
       ) : route === 'today' && starter.st.enabled && idle ? (
@@ -512,6 +515,7 @@ export default function App() {
           onHealth={() => setRoute('health')}
           onSafety={() => setRoute('safety')}
           onStarter={() => setRoute('starterSettings')}
+          onBackup={() => setRoute('backup')}
         />
       ) : route === 'safety' ? (
         <SafetyScreen api={food} first={!food.f.targets.healthAsked} onBack={() => setRoute(food.f.targets.healthAsked ? 'settings' : 'today')} />
